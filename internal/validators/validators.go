@@ -15,7 +15,7 @@ func EnsureNamePresent(name string) error {
 	return nil
 }
 
-func ValidateName(name, kind string) error {
+func ValidateName(name string) error {
 	if !nameRegexp.MatchString(name) {
 		return errors.New("invalid name")
 	}

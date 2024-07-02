@@ -12,6 +12,6 @@ func main() {
 
 	err2 := srv.Run()
 	if err2 != nil {
-		panic(err)
+		panic(err2)
 	}
 }

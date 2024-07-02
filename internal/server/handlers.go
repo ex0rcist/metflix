@@ -14,13 +14,23 @@ type Resource struct {
 	storage storage.Storage
 }
 
+func NewResource(s storage.Storage) Resource {
+	return Resource{
+		storage: s,
+	}
+}
+
 func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
-	body := fmt.Sprintln("mainpage here.", "metrics list: ")
+	body := fmt.Sprintln("mainpage here.")
 
 	// todo: errors
 	records, _ := r.storage.GetAll()
-	for _, record := range records {
-		body += fmt.Sprintf("%s => %s: %v\r\n", record.Name, record.Value.Kind(), record.Value)
+	if len(records) > 0 {
+		body += fmt.Sprintln("metrics list:")
+
+		for _, record := range records {
+			body += fmt.Sprintf("%s => %s: %v\n", record.Name, record.Value.Kind(), record.Value)
+		}
 	}
 
 	res.Write([]byte(body))
@@ -28,17 +38,19 @@ func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
 
 func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 	metricName := req.PathValue("metricName")
+
 	metricType := req.PathValue("metricType")
 	metricValue := req.PathValue("metricValue")
-
-	if err := validators.EnsureNamePresent(metricName); err != nil {
-		res.WriteHeader(http.StatusOK)
-		return
-	}
 
 	//При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
 	if err := validators.EnsureNamePresent(metricName); err != nil {
 		res.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	//При попытке передать запрос с некорректным именем метрики возвращать http.StatusBadRequest.
+	if err := validators.ValidateName(metricName); err != nil {
+		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -59,12 +71,21 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 			value = int64(current.Value.(metrics.Counter))
 		}
 
-		incr, _ := strconv.ParseInt(metricValue, 10, 64)
+		incr, err := strconv.ParseInt(metricValue, 10, 64)
+		if err != nil {
+			res.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		value += incr
 
 		record = storage.Record{Name: metricName, Value: metrics.Counter(value)}
 	case "gauge":
-		current, _ := strconv.ParseFloat(metricValue, 64)
+		current, err := strconv.ParseFloat(metricValue, 64)
+		if err != nil {
+			res.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		record = storage.Record{Name: metricName, Value: metrics.Gauge(current)}
 	default:
 		panic("why") // todo
