@@ -20,7 +20,7 @@ func TestPushCounter(t *testing.T) {
 	err := strg.Push(record)
 
 	require.NoError(err)
-	require.Equal(value, strg.Data[record.RecordId()].Value)
+	require.Equal(value, strg.Data[record.RecordID()].Value)
 }
 
 func TestPushGauge(t *testing.T) {
@@ -34,7 +34,7 @@ func TestPushGauge(t *testing.T) {
 	err := strg.Push(record)
 
 	require.NoError(err)
-	require.Equal(value, strg.Data[record.RecordId()].Value)
+	require.Equal(value, strg.Data[record.RecordID()].Value)
 }
 
 func TestPushWithSameName(t *testing.T) {
@@ -53,8 +53,8 @@ func TestPushWithSameName(t *testing.T) {
 	err2 := strg.Push(record2)
 	require.NoError(err2)
 
-	require.Equal(counterValue, strg.Data[record1.RecordId()].Value)
-	require.Equal(gaugeValue, strg.Data[record2.RecordId()].Value)
+	require.Equal(counterValue, strg.Data[record1.RecordID()].Value)
+	require.Equal(gaugeValue, strg.Data[record2.RecordID()].Value)
 }
 
 func TestGet(t *testing.T) {
@@ -67,7 +67,7 @@ func TestGet(t *testing.T) {
 	err := strg.Push(record)
 	require.NoError(err)
 
-	gotRecord, err := strg.Get(record.RecordId())
+	gotRecord, err := strg.Get(record.RecordID())
 	require.NoError(err)
 	require.Equal(value, gotRecord.Value)
 }

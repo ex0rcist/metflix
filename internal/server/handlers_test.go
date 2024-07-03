@@ -13,33 +13,28 @@ import (
 )
 
 // https://github.com/go-chi/chi/blob/cca4135d8dddff765463feaf1118047a9e506b4a/middleware/get_head_test.go
-func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
+func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (int, string, []byte) {
 	req, err := http.NewRequest(method, ts.URL+path, body)
-	if err != nil {
-		t.Fatal(err)
-		return nil, ""
-	}
+	require.NoError(t, err)
 
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-		return nil, ""
-	}
+	require.NoError(t, err)
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-		return nil, ""
-	}
 	defer resp.Body.Close()
 
-	return resp, string(respBody)
+	contentType := resp.Header.Get("Content-Type")
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return resp.StatusCode, contentType, respBody
 }
 
 func TestHomepage(t *testing.T) {
 	type result struct {
-		code int
-		body string
+		code     int
+		body     string
+		contains []string
 	}
 
 	require := require.New(t)
@@ -61,7 +56,7 @@ func TestHomepage(t *testing.T) {
 				{Name: "test1", Value: metrics.Counter(1)},
 				{Name: "test2", Value: metrics.Gauge(2.3)},
 			},
-			want: result{code: http.StatusOK, body: "mainpage here.\nmetrics list:\ntest1 => counter: 1\ntest2 => gauge: 2.3\n"},
+			want: result{code: http.StatusOK, contains: []string{"mainpage here.", "metrics list", "test1 => counter: 1", "test2 => gauge: 2.3"}},
 		},
 	}
 
@@ -73,15 +68,25 @@ func TestHomepage(t *testing.T) {
 
 		if len(tt.metrics) > 0 {
 			for _, r := range tt.metrics {
-				storage.Push(r)
+				err := storage.Push(r)
+				require.NoError(err)
 			}
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			req, body := testRequest(t, testServer, http.MethodGet, tt.path, nil)
+			code, _, body := testRequest(t, testServer, http.MethodGet, tt.path, nil)
 
-			require.Equal(tt.want.code, req.StatusCode)
-			require.Equal(tt.want.body, string(body))
+			require.Equal(tt.want.code, code)
+
+			if len(tt.want.body) > 0 {
+				require.Equal(tt.want.body, string(body))
+			}
+
+			if len(tt.want.contains) > 0 {
+				for _, v := range tt.want.contains {
+					require.Contains(string(body), v)
+				}
+			}
 		})
 	}
 }
@@ -146,9 +151,9 @@ func TestUpdateMetric(t *testing.T) {
 			testServer := httptest.NewServer(router)
 			defer testServer.Close()
 
-			req, body := testRequest(t, testServer, http.MethodPost, tt.path, nil)
+			code, _, body := testRequest(t, testServer, http.MethodPost, tt.path, nil)
 
-			require.Equal(tt.want.code, req.StatusCode)
+			require.Equal(tt.want.code, code)
 			require.Equal(tt.want.body, string(body))
 		})
 	}

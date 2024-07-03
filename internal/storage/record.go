@@ -7,7 +7,7 @@ type Record struct {
 	Value metrics.Metric
 }
 
-func RecordId(name, kind string) string {
+func RecordID(name, kind string) string {
 	if len(name) == 0 || len(kind) == 0 {
 		return ""
 	}
@@ -15,6 +15,6 @@ func RecordId(name, kind string) string {
 	return name + "_" + kind
 }
 
-func (r Record) RecordId() string {
-	return RecordId(r.Name, r.Value.Kind())
+func (r Record) RecordID() string {
+	return RecordID(r.Name, r.Value.Kind())
 }

@@ -38,7 +38,6 @@ func TestEnsureNamePresent(t *testing.T) {
 func TestValidateName(t *testing.T) {
 	type args struct {
 		name string
-		kind string
 	}
 	tests := []struct {
 		name    string

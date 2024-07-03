@@ -33,7 +33,10 @@ func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
-	res.Write([]byte(body))
+	_, err := res.Write([]byte(body))
+	if err != nil {
+		panic("unable to write") // todo
+	}
 }
 
 func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
@@ -91,7 +94,10 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 		panic("why") // todo
 	}
 
-	r.storage.Push(record)
+	err := r.storage.Push(record)
+	if err != nil {
+		panic("cannot push") // todo
+	}
 
 	res.WriteHeader(http.StatusOK)
 }

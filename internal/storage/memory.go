@@ -9,7 +9,7 @@ type MemStorage struct {
 }
 
 func (strg *MemStorage) Push(record Record) error {
-	id := RecordId(record.Name, record.Value.Kind())
+	id := RecordID(record.Name, record.Value.Kind())
 	strg.Data[id] = record
 
 	return nil
