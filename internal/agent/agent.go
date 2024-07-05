@@ -41,10 +41,15 @@ func (app *Agent) ParseFlags() error {
 	address := app.Config.Address
 
 	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests") // HELP: "&"" because Set() has pointer receiver?
-	pflag.DurationVarP(&app.Config.PollInterval, "poll-interval", "p", app.Config.PollInterval, "interval (s) for polling stats")
-	pflag.DurationVarP(&app.Config.ReportInterval, "report-interval", "r", app.Config.ReportInterval, "interval (s) for polling stats")
+
+	// Task requires us to receive intervals in seconds, not duration, so we have to do it dirty
+	pollFlag := pflag.IntP("poll-interval", "p", durationToInt(app.Config.PollInterval), "interval (s) for polling stats")
+	reportFlag := pflag.IntP("report-interval", "r", durationToInt(app.Config.ReportInterval), "interval (s) for polling stats")
 
 	pflag.Parse()
+
+	app.Config.PollInterval = intToDuration(*pollFlag)
+	app.Config.ReportInterval = intToDuration(*reportFlag)
 
 	// because VarP gets non-pointer value, set it manually
 	pflag.Visit(func(f *pflag.Flag) {
@@ -84,7 +89,7 @@ func (app *Agent) startReporting() {
 func (app *Agent) reportStats() {
 	log.Info().Msg("reporting stats ... ")
 
-	// agent continues polling while repor is in progress, take snapshot
+	// agent continues polling while report is in progress, take snapshot?
 	snapshot := *app.Stats
 
 	app.API.
@@ -121,4 +126,12 @@ func (app *Agent) reportStats() {
 
 	app.API.
 		Report("PollCount", snapshot.PollCount)
+}
+
+func intToDuration(s int) time.Duration {
+	return time.Duration(s) * time.Second
+}
+
+func durationToInt(d time.Duration) int {
+	return int(d.Seconds())
 }
