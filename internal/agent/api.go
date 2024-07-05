@@ -6,17 +6,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/rs/zerolog/log"
 )
 
 type API struct {
-	baseURL    string
+	address    *entities.Address
 	httpClient *http.Client
 	err        error
 }
 
-func NewAPI(serverAddr string, httpTransport http.RoundTripper) *API {
+func NewAPI(address *entities.Address, httpTransport http.RoundTripper) *API {
 	if httpTransport == nil {
 		httpTransport = http.DefaultTransport
 	}
@@ -27,14 +28,15 @@ func NewAPI(serverAddr string, httpTransport http.RoundTripper) *API {
 	}
 
 	return &API{
-		baseURL:    serverAddr,
+		address:    address,
 		httpClient: client,
 		err:        nil,
 	}
 }
 
 func (c *API) Report(name string, metric metrics.Metric) *API {
-	url := c.baseURL + fmt.Sprintf("/update/%s/%s/%s", metric.Kind(), name, metric)
+	// todo: another transport?
+	url := "http://" + c.address.String() + fmt.Sprintf("/update/%s/%s/%s", metric.Kind(), name, metric)
 
 	req, err := http.NewRequest(http.MethodPost, url, http.NoBody)
 	if err != nil {
@@ -47,7 +49,8 @@ func (c *API) Report(name string, metric metrics.Metric) *API {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		c.err = err
+		panic(err)
+		//c.err = err
 	}
 
 	defer resp.Body.Close()

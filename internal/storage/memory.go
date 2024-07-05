@@ -9,14 +9,18 @@ type MemStorage struct {
 	Data map[RecordID]Record
 }
 
+func NewMemStorage() *MemStorage {
+	return &MemStorage{
+		Data: make(map[RecordID]Record),
+	}
+}
+
 func (strg *MemStorage) Push(record Record) error {
 	recordID := CalculateRecordID(record.Name, record.Value.Kind())
 	strg.Data[recordID] = record
 
 	return nil
 }
-
-type By func(r1, r2 *Record) bool
 
 func (strg MemStorage) Get(recordID RecordID) (Record, error) {
 	record, ok := strg.Data[recordID]
@@ -44,10 +48,4 @@ func (strg MemStorage) GetAll() ([]Record, error) {
 	}
 
 	return arr, nil
-}
-
-func NewMemStorage() *MemStorage {
-	return &MemStorage{
-		Data: make(map[RecordID]Record),
-	}
 }

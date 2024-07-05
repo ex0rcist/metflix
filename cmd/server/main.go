@@ -16,7 +16,13 @@ func main() {
 		panic(err)
 	}
 
-	log.Info().Msg("server ready")
+	err = srv.ParseFlags()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Info().Msgf("server flags: address=%v", srv.Config.Address)
+	log.Info().Msg("server ready") // TODO: must be after run?
 
 	err2 := srv.Run()
 	if err2 != nil {

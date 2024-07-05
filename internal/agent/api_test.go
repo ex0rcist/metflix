@@ -1,10 +1,10 @@
-package agent_test
+package agent
 
 import (
 	"net/http"
 	"testing"
 
-	"github.com/ex0rcist/metflix/internal/agent"
+	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +20,11 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestNewApi(t *testing.T) {
 	require := require.New(t)
-	require.NotPanics(func() { agent.NewAPI("someaddr", nil) })
+
+	require.NotPanics(func() {
+		address := entities.Address("localhost")
+		NewAPI(&address, nil)
+	})
 }
 
 func TestApiClientReport(t *testing.T) {
@@ -35,6 +39,8 @@ func TestApiClientReport(t *testing.T) {
 		}
 	}
 
-	api := agent.NewAPI("http://localhost:8080", RoundTripFunc(rtf))
+	address := entities.Address("localhost:8080")
+
+	api := NewAPI(&address, RoundTripFunc(rtf))
 	api.Report("Test", metrics.Counter(0))
 }

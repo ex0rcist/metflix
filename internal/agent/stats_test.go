@@ -1,17 +1,17 @@
-package stats_test
+package agent_test
 
 import (
 	"testing"
 
+	"github.com/ex0rcist/metflix/internal/agent"
 	"github.com/ex0rcist/metflix/internal/metrics"
-	"github.com/ex0rcist/metflix/internal/stats"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStatsPoll(t *testing.T) {
 	require := require.New(t)
 
-	s := stats.NewStats()
+	s := agent.NewStats()
 	require.Zero(s.Runtime.Alloc)
 	require.Zero(s.PollCount)
 	require.Zero(s.RandomValue)

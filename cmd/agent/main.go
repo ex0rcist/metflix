@@ -11,24 +11,23 @@ import (
 func main() {
 	logging.Setup()
 
-	conf := agent.Config{
-		Address:        "http://0.0.0.0:8080",
-		ReportInterval: 10 * time.Second,
-		PollInterval:   2 * time.Second,
-		PollTimeout:    2 * time.Second,
-		ExportTimeout:  4 * time.Second,
-	} // todo: yml?
-
 	log.Info().Msg("starting agent...")
 
-	agnt := agent.New(conf)
+	agnt := agent.New()
+
+	err := agnt.ParseFlags()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Info().Msgf("agent args: a: %v, p: %v, r: %v", agnt.Config.Address, agnt.Config.PollInterval, agnt.Config.ReportInterval)
+
 	agnt.Run()
 
-	log.Info().Msg("agent ready")
+	log.Info().Msgf("agent ready")
 
 	for {
 		// fixme: tmp hack for goroutine
 		time.Sleep(time.Second * 1)
 	}
-
 }
