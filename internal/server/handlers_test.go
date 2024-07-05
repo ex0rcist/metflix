@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/server"
 	"github.com/ex0rcist/metflix/internal/storage"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,12 +62,12 @@ func TestHomepage(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		storage := storage.NewMemStorage()
-		router := server.NewRouter(storage)
-		testServer := httptest.NewServer(router)
-		defer testServer.Close()
+	storage := storage.NewMemStorage()
+	router := server.NewRouter(storage)
+	testServer := httptest.NewServer(router)
+	defer testServer.Close()
 
+	for _, tt := range tests {
 		if len(tt.metrics) > 0 {
 			for _, r := range tt.metrics {
 				err := storage.Push(r)
@@ -99,13 +101,22 @@ func TestUpdateMetric(t *testing.T) {
 
 	require := require.New(t)
 	tests := []struct {
-		name string
-		path string
-		want result
+		name    string
+		path    string
+		metrics []storage.Record
+		want    result
 	}{
 		{
 			name: "push counter",
 			path: "/update/counter/test/42",
+			want: result{code: http.StatusOK, body: ""},
+		},
+		{
+			name: "push counter with existing value",
+			path: "/update/counter/test/42",
+			metrics: []storage.Record{
+				{Name: "test", Value: metrics.Counter(42)},
+			},
 			want: result{code: http.StatusOK, body: ""},
 		},
 		{
@@ -145,16 +156,93 @@ func TestUpdateMetric(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			router := server.NewRouter(storage.NewMemStorage())
-			testServer := httptest.NewServer(router)
-			defer testServer.Close()
+	strg := storage.NewMemStorage()
+	router := server.NewRouter(strg)
+	testServer := httptest.NewServer(router)
+	defer testServer.Close()
 
+	for _, tt := range tests {
+		if len(tt.metrics) > 0 {
+			for _, r := range tt.metrics {
+				err := strg.Push(r)
+				require.NoError(err)
+			}
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
 			code, _, body := testRequest(t, testServer, http.MethodPost, tt.path, nil)
 
 			require.Equal(tt.want.code, code)
 			require.Equal(tt.want.body, string(body))
+		})
+	}
+}
+
+func TestShowMetric(t *testing.T) {
+	type result struct {
+		code int
+		body string
+	}
+
+	//require := require.New(t)
+	tests := []struct {
+		name string
+		path string
+		want result
+	}{
+		{
+			name: "get counter",
+			path: "/value/counter/test",
+			want: result{code: http.StatusOK, body: "42"},
+		},
+		{
+			name: "get gauge",
+			path: "/value/gauge/test",
+			want: result{code: http.StatusOK, body: "42.42"},
+		},
+		{
+			name: "fail on invalid kind",
+			path: "/value/xxx/test",
+			want: result{code: http.StatusBadRequest},
+		},
+		{
+			name: "fail on empty metric name",
+			path: "/value/counter",
+			want: result{code: http.StatusNotFound},
+		},
+		{
+			name: "fail on counter with invalid name",
+			path: "/value/counter/inva!id",
+			want: result{code: http.StatusBadRequest},
+		},
+		{
+			name: "fail on gauge with invalid name",
+			path: "/value/gauge/inval!d",
+			want: result{code: http.StatusBadRequest},
+		},
+	}
+
+	strg := storage.NewMemStorage()
+	router := server.NewRouter(strg)
+	testServer := httptest.NewServer(router)
+	defer testServer.Close()
+
+	err := strg.Push(storage.Record{Name: "test", Value: metrics.Counter(42)})
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = strg.Push(storage.Record{Name: "test", Value: metrics.Gauge(42.42)})
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, _, body := testRequest(t, testServer, http.MethodGet, tt.path, nil)
+
+			assert.Equal(t, tt.want.code, code)
+			assert.Equal(t, tt.want.body, string(body))
 		})
 	}
 }

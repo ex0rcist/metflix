@@ -18,14 +18,18 @@ func TestStatsPoll(t *testing.T) {
 
 	err := s.Poll()
 	require.NoError(err)
-	require.Equal(s.PollCount, metrics.Counter(1))
+	require.Equal(s.PollCount, metrics.Gauge(1))
 	require.NotZero(s.Runtime.Alloc)
 	require.NotZero(s.RandomValue)
 
 	prev := *s
 	err = s.Poll()
 	require.NoError(err)
-	require.Equal(s.PollCount, metrics.Counter(2))
+	require.Equal(s.PollCount, metrics.Gauge(2))
 	require.NotEqual(prev.RandomValue, s.RandomValue)
 	require.NotEqual(prev.Runtime.Alloc, s.Runtime.Alloc)
+
+	err = s.Poll()
+	require.NoError(err)
+	require.Equal(s.PollCount, metrics.Gauge(3))
 }

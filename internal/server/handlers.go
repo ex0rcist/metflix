@@ -41,8 +41,7 @@ func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
 
 func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 	metricName := req.PathValue("metricName")
-
-	metricType := req.PathValue("metricType")
+	metricKind := req.PathValue("metricKind")
 	metricValue := req.PathValue("metricValue")
 
 	//При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
@@ -58,18 +57,19 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 	}
 
 	//При попытке передать запрос с некорректным типом метрики или значением возвращать http.StatusBadRequest.
-	if err := validators.ValidateKind(metricType); err != nil {
+	if err := validators.ValidateKind(metricKind); err != nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	var record storage.Record
+	var rec storage.Record
 
-	switch metricType {
+	switch metricKind {
 	case "counter":
 		var value int64 = 0
 
-		current, err := r.storage.Get(metricName)
+		recordID := storage.CalculateRecordID(metricName, metricKind)
+		current, err := r.storage.Get(recordID)
 		if err == nil {
 			value = int64(current.Value.(metrics.Counter))
 		}
@@ -81,7 +81,7 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 		}
 		value += incr
 
-		record = storage.Record{Name: metricName, Value: metrics.Counter(value)}
+		rec = storage.Record{Name: metricName, Value: metrics.Counter(value)}
 	case "gauge":
 		current, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
@@ -89,15 +89,54 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		record = storage.Record{Name: metricName, Value: metrics.Gauge(current)}
+		rec = storage.Record{Name: metricName, Value: metrics.Gauge(current)}
 	default:
 		panic("why") // todo
 	}
 
-	err := r.storage.Push(record)
+	err := r.storage.Push(rec)
 	if err != nil {
 		panic("cannot push") // todo
 	}
 
 	res.WriteHeader(http.StatusOK)
+}
+
+func (r Resource) ShowMetric(res http.ResponseWriter, req *http.Request) {
+	metricName := req.PathValue("metricName")
+	metricKind := req.PathValue("metricKind")
+
+	//При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
+	if err := validators.EnsureNamePresent(metricName); err != nil {
+		res.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	//При попытке передать запрос с некорректным именем метрики возвращать http.StatusBadRequest.
+	if err := validators.ValidateName(metricName); err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	//При попытке передать запрос с некорректным типом метрики или значением возвращать http.StatusBadRequest.
+	if err := validators.ValidateKind(metricKind); err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var record storage.Record
+
+	recordID := storage.CalculateRecordID(metricName, metricKind)
+	record, err := r.storage.Get(recordID)
+	if err != nil {
+
+	}
+
+	body := record.Value.String()
+
+	res.WriteHeader(http.StatusOK)
+	_, wErr := res.Write([]byte(body))
+	if wErr != nil {
+
+	}
 }

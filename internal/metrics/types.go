@@ -4,6 +4,7 @@ import "strconv"
 
 type Metric interface {
 	Kind() string
+	String() string
 }
 
 type Counter int64

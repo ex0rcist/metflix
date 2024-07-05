@@ -14,16 +14,16 @@ func TestRecordId(t *testing.T) {
 	record1 := storage.Record{Name: "test", Value: metrics.Counter(42)}
 	record2 := storage.Record{Name: "test", Value: metrics.Gauge(42.42)}
 
-	require.Equal("test_counter", record1.RecordID())
-	require.Equal("test_gauge", record2.RecordID())
+	require.Equal(storage.RecordID("test_counter"), record1.CalculateRecordID())
+	require.Equal(storage.RecordID("test_gauge"), record2.CalculateRecordID())
 }
 
 func TestRecordIdWithEmptyName(t *testing.T) {
 	require := require.New(t)
-	require.Equal("", storage.RecordID("", "counter"))
+	require.Equal(storage.RecordID(""), storage.CalculateRecordID("", "counter"))
 }
 
 func TestRecordIdWithEmptyKind(t *testing.T) {
 	require := require.New(t)
-	require.Equal("", storage.RecordID("test", ""))
+	require.Equal(storage.RecordID(""), storage.CalculateRecordID("test", ""))
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/stats"
+	"github.com/rs/zerolog/log"
 )
 
 type Config struct {
@@ -54,38 +55,43 @@ func (app *Agent) startReporting() {
 }
 
 func (app *Agent) reportStats() {
-	app.api.
-		Report("Alloc", app.stats.Runtime.Alloc).
-		Report("BuckHashSys", app.stats.Runtime.BuckHashSys).
-		Report("Frees", app.stats.Runtime.Frees).
-		Report("GCCPUFraction", app.stats.Runtime.GCCPUFraction).
-		Report("GCSys", app.stats.Runtime.GCSys).
-		Report("HeapAlloc", app.stats.Runtime.HeapAlloc).
-		Report("HeapIdle", app.stats.Runtime.HeapIdle).
-		Report("HeapInuse", app.stats.Runtime.HeapInuse).
-		Report("HeapObjects", app.stats.Runtime.HeapObjects).
-		Report("HeapReleased", app.stats.Runtime.HeapReleased).
-		Report("HeapSys", app.stats.Runtime.HeapSys).
-		Report("LastGC", app.stats.Runtime.LastGC).
-		Report("Lookups", app.stats.Runtime.Lookups).
-		Report("MCacheInuse", app.stats.Runtime.MCacheInuse).
-		Report("MCacheSys", app.stats.Runtime.MCacheSys).
-		Report("MSpanInuse", app.stats.Runtime.MSpanInuse).
-		Report("MSpanSys", app.stats.Runtime.MSpanSys).
-		Report("Mallocs", app.stats.Runtime.Mallocs).
-		Report("NextGC", app.stats.Runtime.NextGC).
-		Report("NumForcedGC", app.stats.Runtime.NumForcedGC).
-		Report("NumGC", app.stats.Runtime.NumGC).
-		Report("OtherSys", app.stats.Runtime.OtherSys).
-		Report("PauseTotalNs", app.stats.Runtime.PauseTotalNs).
-		Report("StackInuse", app.stats.Runtime.StackInuse).
-		Report("StackSys", app.stats.Runtime.StackSys).
-		Report("Sys", app.stats.Runtime.Sys).
-		Report("TotalAlloc", app.stats.Runtime.TotalAlloc)
+	log.Info().Msg("reporting stats ... ")
+
+	// agent continues polling while repor is in progress, take snapshot
+	snapshot := *app.stats
 
 	app.api.
-		Report("RandomValue", app.stats.RandomValue)
+		Report("Alloc", snapshot.Runtime.Alloc).
+		Report("BuckHashSys", snapshot.Runtime.BuckHashSys).
+		Report("Frees", snapshot.Runtime.Frees).
+		Report("GCCPUFraction", snapshot.Runtime.GCCPUFraction).
+		Report("GCSys", snapshot.Runtime.GCSys).
+		Report("HeapAlloc", snapshot.Runtime.HeapAlloc).
+		Report("HeapIdle", snapshot.Runtime.HeapIdle).
+		Report("HeapInuse", snapshot.Runtime.HeapInuse).
+		Report("HeapObjects", snapshot.Runtime.HeapObjects).
+		Report("HeapReleased", snapshot.Runtime.HeapReleased).
+		Report("HeapSys", snapshot.Runtime.HeapSys).
+		Report("LastGC", snapshot.Runtime.LastGC).
+		Report("Lookups", snapshot.Runtime.Lookups).
+		Report("MCacheInuse", snapshot.Runtime.MCacheInuse).
+		Report("MCacheSys", snapshot.Runtime.MCacheSys).
+		Report("MSpanInuse", snapshot.Runtime.MSpanInuse).
+		Report("MSpanSys", snapshot.Runtime.MSpanSys).
+		Report("Mallocs", snapshot.Runtime.Mallocs).
+		Report("NextGC", snapshot.Runtime.NextGC).
+		Report("NumForcedGC", snapshot.Runtime.NumForcedGC).
+		Report("NumGC", snapshot.Runtime.NumGC).
+		Report("OtherSys", snapshot.Runtime.OtherSys).
+		Report("PauseTotalNs", snapshot.Runtime.PauseTotalNs).
+		Report("StackInuse", snapshot.Runtime.StackInuse).
+		Report("StackSys", snapshot.Runtime.StackSys).
+		Report("Sys", snapshot.Runtime.Sys).
+		Report("TotalAlloc", snapshot.Runtime.TotalAlloc)
 
 	app.api.
-		Report("PollCount", app.stats.PollCount)
+		Report("RandomValue", snapshot.RandomValue)
+
+	app.api.
+		Report("PollCount", snapshot.PollCount)
 }

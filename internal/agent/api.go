@@ -34,8 +34,6 @@ func NewAPI(serverAddr string, httpTransport http.RoundTripper) *API {
 }
 
 func (c *API) Report(name string, metric metrics.Metric) *API {
-	log.Info().Msg("reporting stats ... ")
-
 	url := c.baseURL + fmt.Sprintf("/update/%s/%s/%s", metric.Kind(), name, metric)
 
 	req, err := http.NewRequest(http.MethodPost, url, http.NoBody)

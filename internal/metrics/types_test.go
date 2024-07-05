@@ -32,7 +32,7 @@ func TestKind(t *testing.T) {
 	}
 }
 
-func TesString(t *testing.T) {
+func TestString(t *testing.T) {
 	tests := []struct {
 		name   string
 		metric metrics.Metric
@@ -56,7 +56,7 @@ func TesString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.metric.Kind(); got != tt.want {
+			if got := tt.metric.String(); got != tt.want {
 				t.Errorf("Metric.String() = %v, want %v", got, tt.want)
 			}
 		})
