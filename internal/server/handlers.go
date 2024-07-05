@@ -8,6 +8,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/ex0rcist/metflix/internal/validators"
+	"github.com/rs/zerolog/log"
 )
 
 type Resource struct {
@@ -18,6 +19,15 @@ func NewResource(s storage.Storage) Resource {
 	return Resource{
 		storage: s,
 	}
+}
+
+func writeErrorResponse(w http.ResponseWriter, code int, err error) {
+	log.Error().Err(err).Msg("")
+
+	w.WriteHeader(code) // only header for now
+
+	// resp := fmt.Sprintf("%d %v", code, err)
+	// http.Error(w, resp, code)
 }
 
 func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
@@ -108,19 +118,19 @@ func (r Resource) ShowMetric(res http.ResponseWriter, req *http.Request) {
 
 	//При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
 	if err := validators.EnsureNamePresent(metricName); err != nil {
-		res.WriteHeader(http.StatusNotFound)
+		writeErrorResponse(res, http.StatusNotFound, err)
 		return
 	}
 
 	//При попытке передать запрос с некорректным именем метрики возвращать http.StatusBadRequest.
 	if err := validators.ValidateName(metricName); err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		writeErrorResponse(res, http.StatusBadRequest, err)
 		return
 	}
 
 	//При попытке передать запрос с некорректным типом метрики или значением возвращать http.StatusBadRequest.
 	if err := validators.ValidateKind(metricKind); err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		writeErrorResponse(res, http.StatusBadRequest, err)
 		return
 	}
 
@@ -129,14 +139,17 @@ func (r Resource) ShowMetric(res http.ResponseWriter, req *http.Request) {
 	recordID := storage.CalculateRecordID(metricName, metricKind)
 	record, err := r.storage.Get(recordID)
 	if err != nil {
-
+		writeErrorResponse(res, http.StatusNotFound, err)
+		return
 	}
 
 	body := record.Value.String()
 
 	res.WriteHeader(http.StatusOK)
-	_, wErr := res.Write([]byte(body))
-	if wErr != nil {
 
+	_, err = res.Write([]byte(body))
+	if err != nil {
+		writeErrorResponse(res, http.StatusInternalServerError, err)
+		return
 	}
 }
