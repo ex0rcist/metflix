@@ -6,11 +6,11 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/rs/zerolog/pkgerrors"
 )
 
 func Setup() {
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	// HELP: not working :(
+	// zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	output := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
