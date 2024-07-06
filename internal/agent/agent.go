@@ -130,6 +130,9 @@ func (a *Agent) reportStats() {
 
 	a.API.
 		Report("PollCount", snapshot.PollCount)
+
+	// because metrics.Counter adds value to itself
+	a.Stats.PollCount -= snapshot.PollCount
 }
 
 func intToDuration(s int) time.Duration {

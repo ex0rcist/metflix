@@ -10,7 +10,7 @@ import (
 
 type Stats struct {
 	Runtime     RuntimeStats
-	PollCount   metrics.Gauge
+	PollCount   metrics.Counter
 	RandomValue metrics.Gauge
 
 	generator *rand.Rand
