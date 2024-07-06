@@ -13,21 +13,29 @@ func main() {
 
 	log.Info().Msg("starting agent...")
 
-	agnt := agent.New()
-
-	err := agnt.ParseFlags()
+	agnt, err := agent.New()
 	if err != nil {
-		panic(err)
+		log.Error().Err(err).Msg("")
+		return
 	}
 
-	log.Info().Msgf("agent args: a: %v, p: %v, r: %v", agnt.Config.Address, agnt.Config.PollInterval, agnt.Config.ReportInterval)
+	err = agnt.ParseFlags()
+	if err != nil {
+		log.Error().Err(err).Msg("")
+		return
+	}
 
-	agnt.Run()
+	log.Info().Msg(agnt.Config.String())
 
-	log.Info().Msgf("agent ready")
+	err = agnt.Run()
+	if err != nil {
+		log.Error().Err(err).Msg("")
+		return
+	}
 
-	for {
-		// fixme: tmp hack for goroutine
+	log.Info().Msg("agent ready")
+
+	for { // fixme: tmp hack for goroutine
 		time.Sleep(time.Second * 1)
 	}
 }

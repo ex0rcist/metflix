@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
@@ -15,16 +17,16 @@ type Agent struct {
 }
 
 type Config struct {
-	Address        entities.Address
-	PollInterval   time.Duration
-	ReportInterval time.Duration
+	Address        entities.Address `env:"ADDRESS"`
+	PollInterval   int              `env:"POLL_INTERVAL"`
+	ReportInterval int              `env:"REPORT_INTERVAL"`
 }
 
-func New() *Agent {
+func New() (*Agent, error) {
 	config := &Config{
 		Address:        "0.0.0.0:8080",
-		PollInterval:   2 * time.Second,
-		ReportInterval: 10 * time.Second,
+		PollInterval:   2,
+		ReportInterval: 10,
 	}
 
 	stats := NewStats()
@@ -34,65 +36,67 @@ func New() *Agent {
 		Config: config,
 		Stats:  stats,
 		API:    api,
-	}
+	}, nil
 }
 
-func (app *Agent) ParseFlags() error {
-	address := app.Config.Address
+func (a *Agent) ParseFlags() error {
+	address := a.Config.Address
 
 	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests") // HELP: "&"" because Set() has pointer receiver?
 
-	// Task requires us to receive intervals in seconds, not duration, so we have to do it dirty
-	pollFlag := pflag.IntP("poll-interval", "p", durationToInt(app.Config.PollInterval), "interval (s) for polling stats")
-	reportFlag := pflag.IntP("report-interval", "r", durationToInt(app.Config.ReportInterval), "interval (s) for polling stats")
+	pflag.IntVarP(&a.Config.PollInterval, "poll-interval", "p", a.Config.PollInterval, "interval (s) for polling stats")
+	pflag.IntVarP(&a.Config.ReportInterval, "report-interval", "r", a.Config.ReportInterval, "interval (s) for polling stats")
 
 	pflag.Parse()
-
-	app.Config.PollInterval = intToDuration(*pollFlag)
-	app.Config.ReportInterval = intToDuration(*reportFlag)
 
 	// because VarP gets non-pointer value, set it manually
 	pflag.Visit(func(f *pflag.Flag) {
 		switch f.Name {
 		case "address":
-			app.Config.Address = address
+			a.Config.Address = address
 		}
 	})
+
+	if err := env.Parse(a.Config); err != nil {
+		fmt.Printf("%+v\n", err)
+	}
 
 	return nil
 }
 
-func (app *Agent) Run() {
-	go app.startPolling()
-	go app.startReporting()
+func (a *Agent) Run() error {
+	go a.startPolling()
+	go a.startReporting()
+
+	return nil // return error from goroutine?
 }
 
-func (app *Agent) startPolling() {
+func (a *Agent) startPolling() {
 	for {
-		err := app.Stats.Poll()
+		err := a.Stats.Poll()
 		if err != nil {
 			return // todo: handle errors
 		}
 
-		time.Sleep(app.Config.PollInterval)
+		time.Sleep(intToDuration(a.Config.PollInterval))
 	}
 }
 
-func (app *Agent) startReporting() {
+func (a *Agent) startReporting() {
 	for {
-		time.Sleep(app.Config.ReportInterval)
+		time.Sleep(intToDuration(a.Config.ReportInterval))
 
-		app.reportStats() // todo: handle errors
+		a.reportStats() // todo: handle errors
 	}
 }
 
-func (app *Agent) reportStats() {
+func (a *Agent) reportStats() {
 	log.Info().Msg("reporting stats ... ")
 
 	// agent continues polling while report is in progress, take snapshot?
-	snapshot := *app.Stats
+	snapshot := *a.Stats
 
-	app.API.
+	a.API.
 		Report("Alloc", snapshot.Runtime.Alloc).
 		Report("BuckHashSys", snapshot.Runtime.BuckHashSys).
 		Report("Frees", snapshot.Runtime.Frees).
@@ -121,10 +125,10 @@ func (app *Agent) reportStats() {
 		Report("Sys", snapshot.Runtime.Sys).
 		Report("TotalAlloc", snapshot.Runtime.TotalAlloc)
 
-	app.API.
+	a.API.
 		Report("RandomValue", snapshot.RandomValue)
 
-	app.API.
+	a.API.
 		Report("PollCount", snapshot.PollCount)
 }
 
@@ -132,6 +136,11 @@ func intToDuration(s int) time.Duration {
 	return time.Duration(s) * time.Second
 }
 
-func durationToInt(d time.Duration) int {
-	return int(d.Seconds())
+func (c Config) String() string {
+	out := "agent config: "
+
+	out += fmt.Sprintf("address=%v \t", c.Address)
+	out += fmt.Sprintf("poll-interval=%v \t", c.PollInterval)
+	out += fmt.Sprintf("report-interval=%v \t", c.ReportInterval)
+	return out
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/server"
+
 	"github.com/rs/zerolog/log"
 )
 
@@ -13,19 +14,23 @@ func main() {
 
 	srv, err := server.New()
 	if err != nil {
-		panic(err)
+		log.Error().Err(err).Msg("")
+		return
 	}
 
 	err = srv.ParseFlags()
 	if err != nil {
-		panic(err)
+
+		log.Error().Err(err).Msg("")
+		return
 	}
 
-	log.Info().Msgf("server flags: address=%v", srv.Config.Address)
+	log.Info().Msgf(srv.Config.String())
 	log.Info().Msg("server ready") // TODO: must be after run?
 
-	err2 := srv.Run()
-	if err2 != nil {
-		panic(err2)
+	err = srv.Run()
+	if err != nil {
+		log.Error().Err(err).Msg("")
+		return
 	}
 }

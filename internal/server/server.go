@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/spf13/pflag"
@@ -15,7 +17,7 @@ type Server struct {
 }
 
 type Config struct {
-	Address entities.Address
+	Address entities.Address `env:"ADDRESS"`
 }
 
 func New() (*Server, error) {
@@ -47,10 +49,22 @@ func (s *Server) ParseFlags() error {
 		}
 	})
 
+	if err := env.Parse(s.Config); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (s *Server) Run() error {
-	err := http.ListenAndServe(s.Config.Address.String(), s.Router) // HELP: почему тип, реализующий String() не приводится к строке автоматически?
+	// HELP: почему тип, реализующий String() не приводится к строке автоматически?
+	err := http.ListenAndServe(s.Config.Address.String(), s.Router)
 	return err
+}
+
+func (c Config) String() string {
+	out := "server config: "
+
+	out += fmt.Sprintf("address=%s\t", c.Address)
+	return out
 }

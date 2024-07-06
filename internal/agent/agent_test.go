@@ -7,8 +7,8 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	agnt := New()
-	require.NotPanics(t, agnt.Run)
+	_, err := New()
+	require.NoError(t, err)
 }
 
 func TestReportStats(t *testing.T) {
