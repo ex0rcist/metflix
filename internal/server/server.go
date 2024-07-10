@@ -6,6 +6,7 @@ import (
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/spf13/pflag"
 )
@@ -50,7 +51,7 @@ func (s *Server) ParseFlags() error {
 	})
 
 	if err := env.Parse(s.Config); err != nil {
-		return err
+		return logging.NewError(err)
 	}
 
 	return nil

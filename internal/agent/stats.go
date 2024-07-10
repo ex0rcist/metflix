@@ -4,8 +4,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
-	"github.com/rs/zerolog/log"
 )
 
 type Stats struct {
@@ -22,7 +22,7 @@ func NewStats() *Stats {
 }
 
 func (m *Stats) Poll() error {
-	log.Info().Msg("polling stats ... ")
+	logging.LogInfo("polling stats ... ")
 
 	m.PollCount++
 	m.RandomValue = metrics.Gauge(m.generator.Float64())

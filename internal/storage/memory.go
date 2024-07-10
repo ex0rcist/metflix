@@ -1,8 +1,9 @@
 package storage
 
 import (
-	"errors"
 	"sort"
+
+	"github.com/ex0rcist/metflix/internal/entities"
 )
 
 type MemStorage struct {
@@ -25,14 +26,12 @@ func (strg *MemStorage) Push(record Record) error {
 func (strg MemStorage) Get(recordID RecordID) (Record, error) {
 	record, ok := strg.Data[recordID]
 	if !ok {
-		return Record{}, errors.New("no value")
+		return Record{}, entities.ErrMetricNotFound
 	}
 
 	return record, nil
 }
 
-// Sorted by name
-// Too complicated? mb easy way?
 func (strg MemStorage) GetAll() ([]Record, error) {
 	names := make([]string, 0, len(strg.Data))
 

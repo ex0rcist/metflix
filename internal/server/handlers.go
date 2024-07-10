@@ -1,14 +1,16 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/ex0rcist/metflix/internal/validators"
-	"github.com/rs/zerolog/log"
 )
 
 type Resource struct {
@@ -22,7 +24,7 @@ func NewResource(s storage.Storage) Resource {
 }
 
 func writeErrorResponse(w http.ResponseWriter, code int, err error) {
-	log.Error().Err(err).Msg("")
+	logging.LogError(err)
 
 	w.WriteHeader(code) // only header for now
 
@@ -45,7 +47,7 @@ func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
 
 	_, err := res.Write([]byte(body))
 	if err != nil {
-		panic("unable to write") // todo
+		logging.LogError(err)
 	}
 }
 
@@ -54,21 +56,18 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 	metricKind := req.PathValue("metricKind")
 	metricValue := req.PathValue("metricValue")
 
-	//При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
 	if err := validators.EnsureNamePresent(metricName); err != nil {
-		res.WriteHeader(http.StatusNotFound)
+		writeErrorResponse(res, http.StatusNotFound, err)
 		return
 	}
 
-	//При попытке передать запрос с некорректным именем метрики возвращать http.StatusBadRequest.
 	if err := validators.ValidateName(metricName); err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		writeErrorResponse(res, http.StatusBadRequest, err)
 		return
 	}
 
-	//При попытке передать запрос с некорректным типом метрики или значением возвращать http.StatusBadRequest.
 	if err := validators.ValidateKind(metricKind); err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		writeErrorResponse(res, http.StatusBadRequest, err)
 		return
 	}
 
@@ -76,37 +75,45 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 
 	switch metricKind {
 	case "counter":
-		var value int64 = 0
+		var currentValue int64
 
 		recordID := storage.CalculateRecordID(metricName, metricKind)
 		current, err := r.storage.Get(recordID)
-		if err == nil {
-			value = int64(current.Value.(metrics.Counter))
+
+		if err != nil && errors.Is(err, entities.ErrMetricNotFound) {
+			currentValue = 0
+		} else if err != nil {
+			writeErrorResponse(res, http.StatusInternalServerError, err)
+			return
+		} else {
+			currentValue = int64(current.Value.(metrics.Counter))
 		}
 
 		incr, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
-			res.WriteHeader(http.StatusBadRequest)
+			writeErrorResponse(res, http.StatusBadRequest, err)
 			return
 		}
-		value += incr
+		currentValue += incr
 
-		rec = storage.Record{Name: metricName, Value: metrics.Counter(value)}
+		rec = storage.Record{Name: metricName, Value: metrics.Counter(currentValue)}
 	case "gauge":
 		current, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			res.WriteHeader(http.StatusBadRequest)
+			writeErrorResponse(res, http.StatusBadRequest, err)
 			return
 		}
 
 		rec = storage.Record{Name: metricName, Value: metrics.Gauge(current)}
 	default:
-		panic("why") // todo
+		writeErrorResponse(res, http.StatusBadRequest, entities.ErrMetricUnknown)
+		return
 	}
 
 	err := r.storage.Push(rec)
 	if err != nil {
-		panic("cannot push") // todo
+		writeErrorResponse(res, http.StatusInternalServerError, err)
+		return
 	}
 
 	res.WriteHeader(http.StatusOK)
@@ -116,19 +123,16 @@ func (r Resource) ShowMetric(res http.ResponseWriter, req *http.Request) {
 	metricName := req.PathValue("metricName")
 	metricKind := req.PathValue("metricKind")
 
-	//При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
 	if err := validators.EnsureNamePresent(metricName); err != nil {
 		writeErrorResponse(res, http.StatusNotFound, err)
 		return
 	}
 
-	//При попытке передать запрос с некорректным именем метрики возвращать http.StatusBadRequest.
 	if err := validators.ValidateName(metricName); err != nil {
 		writeErrorResponse(res, http.StatusBadRequest, err)
 		return
 	}
 
-	//При попытке передать запрос с некорректным типом метрики или значением возвращать http.StatusBadRequest.
 	if err := validators.ValidateKind(metricKind); err != nil {
 		writeErrorResponse(res, http.StatusBadRequest, err)
 		return

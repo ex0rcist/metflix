@@ -1,15 +1,16 @@
 package validators
 
 import (
-	"errors"
 	"regexp"
+
+	"github.com/ex0rcist/metflix/internal/entities"
 )
 
 var nameRegexp = regexp.MustCompile(`^[A-Za-z\d]+$`)
 
 func EnsureNamePresent(name string) error {
 	if len(name) == 0 {
-		return errors.New("missing name")
+		return entities.ErrMetricMissingName
 	}
 
 	return nil
@@ -17,7 +18,7 @@ func EnsureNamePresent(name string) error {
 
 func ValidateName(name string) error {
 	if !nameRegexp.MatchString(name) {
-		return errors.New("invalid name")
+		return entities.ErrMetricInvalidName
 	}
 
 	return nil
@@ -29,6 +30,6 @@ func ValidateKind(kind string) error {
 		return nil
 
 	default:
-		return errors.New("invalid metric type")
+		return entities.ErrMetricUnknown
 	}
 }

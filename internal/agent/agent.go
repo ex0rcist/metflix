@@ -2,11 +2,12 @@ package agent
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/rs/zerolog/log"
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/spf13/pflag"
 )
 
@@ -14,6 +15,8 @@ type Agent struct {
 	Config *Config
 	Stats  *Stats
 	API    *API
+
+	wg sync.WaitGroup
 }
 
 type Config struct {
@@ -58,24 +61,28 @@ func (a *Agent) ParseFlags() error {
 	})
 
 	if err := env.Parse(a.Config); err != nil {
-		fmt.Printf("%+v\n", err)
+		return err
 	}
 
 	return nil
 }
 
-func (a *Agent) Run() error {
+func (a *Agent) Run() {
+	a.wg.Add(2)
+
 	go a.startPolling()
 	go a.startReporting()
 
-	return nil // return error from goroutine?
+	a.wg.Wait()
 }
 
 func (a *Agent) startPolling() {
+	defer a.wg.Done()
+
 	for {
 		err := a.Stats.Poll()
 		if err != nil {
-			return // todo: handle errors
+			logging.LogError(err)
 		}
 
 		time.Sleep(intToDuration(a.Config.PollInterval))
@@ -83,15 +90,17 @@ func (a *Agent) startPolling() {
 }
 
 func (a *Agent) startReporting() {
+	defer a.wg.Done()
+
 	for {
 		time.Sleep(intToDuration(a.Config.ReportInterval))
 
-		a.reportStats() // todo: handle errors
+		a.reportStats()
 	}
 }
 
 func (a *Agent) reportStats() {
-	log.Info().Msg("reporting stats ... ")
+	logging.LogInfo("reporting stats ... ")
 
 	// agent continues polling while report is in progress, take snapshot?
 	snapshot := *a.Stats
