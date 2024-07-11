@@ -28,7 +28,5 @@ func (m *Stats) Poll() error {
 	m.RandomValue = metrics.Gauge(m.generator.Float64())
 	m.Runtime.Poll()
 
-	// todo: errors?
-
 	return nil
 }
