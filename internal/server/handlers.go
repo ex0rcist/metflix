@@ -56,13 +56,11 @@ func (r Resource) Homepage(rw http.ResponseWriter, req *http.Request) {
 
 func (r Resource) UpdateMetric(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	// logger := zerolog.Ctx(req.Context())
 
 	metricName := req.PathValue("metricName")
 	metricKind := req.PathValue("metricKind")
 	metricValue := req.PathValue("metricValue")
 
-	//logger.Info().Msg(fmt.Sprintf("updating1 metric... %v", metricName))
 	logging.LogInfo(ctx, fmt.Sprintf("updating metric... %v", metricName))
 
 	if err := validators.EnsureNamePresent(metricName); err != nil {
