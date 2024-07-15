@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"os"
 	"strings"
 	"time"
@@ -11,32 +12,38 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
-func Setup() {
+func Setup(ctx context.Context) context.Context {
+	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339Nano}
+	// output := os.Stdout
+	logger := zerolog.New(output).With().Timestamp().Logger()
+
+	// set global logger
+	log.Logger = logger
+
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	zerolog.DefaultContextLogger = &logger // HELP: is it bad?   ->   logging.LogInfo(context.Background(), "some message")
 
-	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
-
-	l := zerolog.New(output).With().Timestamp()
-	log.Logger = l.Logger()
+	// added logger to ctx
+	return logger.WithContext(ctx)
 }
 
 func NewError(err error) error { // wrap err to pkg/errors
 	return errors.New(err.Error()) // TODO: can we remove this func from stack?
 }
 
-func LogError(err error, messages ...string) {
+func LogError(ctx context.Context, err error, messages ...string) {
 	msg := optMessagesToString(messages)
-	log.Error().Stack().Err(err).Msg(msg)
+	log.Ctx(ctx).Error().Stack().Err(err).Msg(msg)
 }
 
-func LogFatal(err error, messages ...string) {
+func LogFatal(ctx context.Context, err error, messages ...string) {
 	msg := optMessagesToString(messages)
-	log.Fatal().Stack().Err(err).Msg(msg)
+	log.Ctx(ctx).Fatal().Stack().Err(err).Msg(msg)
 }
 
-func LogInfo(messages ...string) {
+func LogInfo(ctx context.Context, messages ...string) {
 	msg := optMessagesToString(messages)
-	log.Info().Msg(msg)
+	log.Ctx(ctx).Info().Msg(msg)
 }
 
 func optMessagesToString(messages []string) string {

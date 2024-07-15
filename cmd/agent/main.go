@@ -1,28 +1,30 @@
 package main
 
 import (
+	"context"
+
 	"github.com/ex0rcist/metflix/internal/agent"
 	"github.com/ex0rcist/metflix/internal/logging"
 )
 
 func main() {
-	logging.Setup()
+	ctx := logging.Setup(context.Background())
 
-	logging.LogInfo("starting agent...")
+	logging.LogInfo(ctx, "starting agent...")
 
 	agnt, err := agent.New()
 	if err != nil {
-		logging.LogFatal(err)
+		logging.LogFatal(ctx, err)
 	}
 
 	err = agnt.ParseFlags()
 	if err != nil {
-		logging.LogFatal(err)
+		logging.LogFatal(ctx, err)
 	}
 
-	logging.LogInfo(agnt.Config.String())
+	logging.LogInfo(ctx, agnt.Config.String())
 
 	agnt.Run()
 
-	logging.LogInfo("agent ready")
+	logging.LogInfo(ctx, "agent ready")
 }

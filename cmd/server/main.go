@@ -1,30 +1,32 @@
 package main
 
 import (
+	"context"
+
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/server"
 )
 
 func main() {
-	logging.Setup()
+	ctx := logging.Setup(context.Background())
 
-	logging.LogInfo("starting server...")
+	logging.LogInfo(ctx, "starting server...")
 
 	srv, err := server.New()
 	if err != nil {
-		logging.LogFatal(err)
+		logging.LogFatal(ctx, err)
 	}
 
 	err = srv.ParseFlags()
 	if err != nil {
-		logging.LogFatal(err)
+		logging.LogFatal(ctx, err)
 	}
 
-	logging.LogInfo(srv.Config.String())
-	logging.LogInfo("server ready") // TODO: must be after run?
+	logging.LogInfo(ctx, srv.Config.String())
+	logging.LogInfo(ctx, "server ready") // TODO: must be after run?
 
 	err = srv.Run()
 	if err != nil {
-		logging.LogFatal(err)
+		logging.LogFatal(ctx, err)
 	}
 }

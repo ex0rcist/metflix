@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"math/rand"
 	"time"
 
@@ -22,7 +23,9 @@ func NewStats() *Stats {
 }
 
 func (m *Stats) Poll() error {
-	logging.LogInfo("polling stats ... ")
+	ctx := context.Background()
+
+	logging.LogInfo(ctx, "polling stats ... ")
 
 	m.PollCount++
 	m.RandomValue = metrics.Gauge(m.generator.Float64())

@@ -1,6 +1,7 @@
 package logging_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ex0rcist/metflix/internal/logging"
@@ -9,5 +10,7 @@ import (
 
 func TestSetup(t *testing.T) {
 	require := require.New(t)
-	require.NotPanics(logging.Setup)
+	ctx := context.Background()
+
+	require.NotPanics(func() { logging.Setup(ctx) })
 }

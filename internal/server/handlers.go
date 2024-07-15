@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,8 +24,8 @@ func NewResource(s storage.Storage) Resource {
 	}
 }
 
-func writeErrorResponse(w http.ResponseWriter, code int, err error) {
-	logging.LogError(err)
+func writeErrorResponse(ctx context.Context, w http.ResponseWriter, code int, err error) {
+	logging.LogError(ctx, err)
 
 	w.WriteHeader(code) // only header for now
 
@@ -32,7 +33,9 @@ func writeErrorResponse(w http.ResponseWriter, code int, err error) {
 	// http.Error(w, resp, code)
 }
 
-func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
+func (r Resource) Homepage(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
 	body := fmt.Sprintln("mainpage here.")
 
 	// todo: errors
@@ -45,29 +48,35 @@ func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
-	_, err := res.Write([]byte(body))
+	_, err := rw.Write([]byte(body))
 	if err != nil {
-		logging.LogError(err)
+		logging.LogError(ctx, err)
 	}
 }
 
-func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
+func (r Resource) UpdateMetric(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	// logger := zerolog.Ctx(req.Context())
+
 	metricName := req.PathValue("metricName")
 	metricKind := req.PathValue("metricKind")
 	metricValue := req.PathValue("metricValue")
 
+	//logger.Info().Msg(fmt.Sprintf("updating1 metric... %v", metricName))
+	logging.LogInfo(ctx, fmt.Sprintf("updating metric... %v", metricName))
+
 	if err := validators.EnsureNamePresent(metricName); err != nil {
-		writeErrorResponse(res, http.StatusNotFound, err)
+		writeErrorResponse(ctx, rw, http.StatusNotFound, err)
 		return
 	}
 
 	if err := validators.ValidateName(metricName); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
 		return
 	}
 
 	if err := validators.ValidateKind(metricKind); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
 		return
 	}
 
@@ -83,7 +92,7 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 		if err != nil && errors.Is(err, entities.ErrMetricNotFound) {
 			currentValue = 0
 		} else if err != nil {
-			writeErrorResponse(res, http.StatusInternalServerError, err)
+			writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 			return
 		} else {
 			currentValue = int64(current.Value.(metrics.Counter))
@@ -91,7 +100,7 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 
 		incr, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
-			writeErrorResponse(res, http.StatusBadRequest, err)
+			writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
 			return
 		}
 		currentValue += incr
@@ -100,41 +109,43 @@ func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
 	case "gauge":
 		current, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			writeErrorResponse(res, http.StatusBadRequest, err)
+			writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
 			return
 		}
 
 		rec = storage.Record{Name: metricName, Value: metrics.Gauge(current)}
 	default:
-		writeErrorResponse(res, http.StatusBadRequest, entities.ErrMetricUnknown)
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, entities.ErrMetricUnknown)
 		return
 	}
 
 	err := r.storage.Push(rec)
 	if err != nil {
-		writeErrorResponse(res, http.StatusInternalServerError, err)
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
 	}
 
-	res.WriteHeader(http.StatusOK)
+	rw.WriteHeader(http.StatusOK)
 }
 
-func (r Resource) ShowMetric(res http.ResponseWriter, req *http.Request) {
+func (r Resource) ShowMetric(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
 	metricName := req.PathValue("metricName")
 	metricKind := req.PathValue("metricKind")
 
 	if err := validators.EnsureNamePresent(metricName); err != nil {
-		writeErrorResponse(res, http.StatusNotFound, err)
+		writeErrorResponse(ctx, rw, http.StatusNotFound, err)
 		return
 	}
 
 	if err := validators.ValidateName(metricName); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
 		return
 	}
 
 	if err := validators.ValidateKind(metricKind); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
 		return
 	}
 
@@ -143,17 +154,17 @@ func (r Resource) ShowMetric(res http.ResponseWriter, req *http.Request) {
 	recordID := storage.CalculateRecordID(metricName, metricKind)
 	record, err := r.storage.Get(recordID)
 	if err != nil {
-		writeErrorResponse(res, http.StatusNotFound, err)
+		writeErrorResponse(ctx, rw, http.StatusNotFound, err)
 		return
 	}
 
 	body := record.Value.String()
 
-	res.WriteHeader(http.StatusOK)
+	rw.WriteHeader(http.StatusOK)
 
-	_, err = res.Write([]byte(body))
+	_, err = rw.Write([]byte(body))
 	if err != nil {
-		writeErrorResponse(res, http.StatusInternalServerError, err)
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
 	}
 }

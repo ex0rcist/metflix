@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -79,10 +80,12 @@ func (a *Agent) Run() {
 func (a *Agent) startPolling() {
 	defer a.wg.Done()
 
+	ctx := context.Background()
+
 	for {
 		err := a.Stats.Poll()
 		if err != nil {
-			logging.LogError(err)
+			logging.LogError(ctx, err)
 		}
 
 		time.Sleep(intToDuration(a.Config.PollInterval))
@@ -100,7 +103,9 @@ func (a *Agent) startReporting() {
 }
 
 func (a *Agent) reportStats() {
-	logging.LogInfo("reporting stats ... ")
+	ctx := context.Background()
+
+	logging.LogInfo(ctx, "reporting stats ... ")
 
 	// agent continues polling while report is in progress, take snapshot?
 	snapshot := *a.Stats
