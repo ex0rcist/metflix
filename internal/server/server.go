@@ -13,7 +13,7 @@ import (
 
 type Server struct {
 	Config  *Config
-	Storage storage.Storage
+	Storage storage.MetricsStorage
 	Router  http.Handler
 }
 
@@ -26,12 +26,14 @@ func New() (*Server, error) {
 		Address: "0.0.0.0:8080",
 	}
 
-	storage := storage.NewMemStorage()
-	router := NewRouter(storage)
+	memStorage := storage.NewMemStorage()
+	storageService := storage.NewService(memStorage)
+
+	router := NewRouter(storageService)
 
 	return &Server{
 		Config:  config,
-		Storage: storage,
+		Storage: memStorage,
 		Router:  router,
 	}, nil
 }

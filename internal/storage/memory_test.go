@@ -13,11 +13,13 @@ func TestPushCounter(t *testing.T) {
 	require := require.New(t)
 
 	strg := storage.NewMemStorage()
+
 	name := "test"
+	id := storage.CalculateRecordID(name, "counter")
 
 	value := metrics.Counter(42)
 	record := storage.Record{Name: name, Value: value}
-	err := strg.Push(record)
+	err := strg.Push(id, record)
 
 	require.NoError(err)
 	require.Equal(value, strg.Data[record.CalculateRecordID()].Value)
@@ -27,11 +29,10 @@ func TestPushGauge(t *testing.T) {
 	require := require.New(t)
 
 	strg := storage.NewMemStorage()
-	name := "test"
 
 	value := metrics.Gauge(42.42)
-	record := storage.Record{Name: name, Value: value}
-	err := strg.Push(record)
+	record := storage.Record{Name: "test", Value: value}
+	err := strg.Push(record.CalculateRecordID(), record)
 
 	require.NoError(err)
 	require.Equal(value, strg.Data[record.CalculateRecordID()].Value)
@@ -46,11 +47,13 @@ func TestPushWithSameName(t *testing.T) {
 	gaugeValue := metrics.Gauge(42.42)
 
 	record1 := storage.Record{Name: "test", Value: counterValue}
-	err1 := strg.Push(record1)
+	id1 := record1.CalculateRecordID()
+	err1 := strg.Push(id1, record1)
 	require.NoError(err1)
 
 	record2 := storage.Record{Name: "test", Value: gaugeValue}
-	err2 := strg.Push(record2)
+	id2 := record2.CalculateRecordID()
+	err2 := strg.Push(id2, record2)
 	require.NoError(err2)
 
 	require.Equal(counterValue, strg.Data[record1.CalculateRecordID()].Value)
@@ -64,7 +67,8 @@ func TestGet(t *testing.T) {
 
 	value := metrics.Counter(6)
 	record := storage.Record{Name: "test", Value: value}
-	err := strg.Push(record)
+	id := record.CalculateRecordID()
+	err := strg.Push(id, record)
 	require.NoError(err)
 
 	gotRecord, err := strg.Get(record.CalculateRecordID())
@@ -81,7 +85,7 @@ func TestGetNonExistantKey(t *testing.T) {
 	require.Error(err)
 }
 
-func TestGetAll(t *testing.T) {
+func TestList(t *testing.T) {
 	require := require.New(t)
 
 	strg := storage.NewMemStorage()
@@ -93,11 +97,12 @@ func TestGetAll(t *testing.T) {
 	}
 
 	for _, r := range records {
-		err := strg.Push(r)
+		err := strg.Push(r.CalculateRecordID(), r)
 		require.NoError(err)
 	}
 
-	allRecords, err := strg.GetAll()
+	allRecords, err := strg.List()
+
 	require.NoError(err)
 	require.ElementsMatch(records, allRecords)
 }

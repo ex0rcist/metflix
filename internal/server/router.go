@@ -10,9 +10,8 @@ import (
 	"github.com/ex0rcist/metflix/internal/storage"
 )
 
-func NewRouter(storage storage.Storage) http.Handler {
+func NewRouter(storageService storage.StorageService) http.Handler {
 	router := chi.NewRouter()
-	resource := Resource{storage: storage}
 
 	router.Use(middleware.RealIP)
 	router.Use(logging.RequestsLogger)
@@ -21,9 +20,15 @@ func NewRouter(storage storage.Storage) http.Handler {
 		w.WriteHeader(http.StatusNotFound) // no default body
 	}))
 
+	resource := NewMetricResource(storageService)
+
 	router.Get("/", resource.Homepage) // TODO: resource?
+
 	router.Post("/update/{metricKind}/{metricName}/{metricValue}", resource.UpdateMetric)
-	router.Get("/value/{metricKind}/{metricName}", resource.ShowMetric)
+	router.Post("/update", resource.UpdateMetricJSON)
+
+	router.Get("/value/{metricKind}/{metricName}", resource.GetMetric)
+	router.Post("/value", resource.GetMetricJSON)
 
 	return router
 }

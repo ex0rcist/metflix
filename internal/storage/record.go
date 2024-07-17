@@ -2,20 +2,19 @@ package storage
 
 import "github.com/ex0rcist/metflix/internal/metrics"
 
-type RecordID string
 type Record struct {
 	Name  string
 	Value metrics.Metric
 }
 
-func CalculateRecordID(name, kind string) RecordID {
+func CalculateRecordID(name, kind string) string {
 	if len(name) == 0 || len(kind) == 0 {
-		return RecordID("")
+		return ""
 	}
 
-	return RecordID(name + "_" + kind)
+	return name + "_" + kind
 }
 
-func (r Record) CalculateRecordID() RecordID {
+func (r Record) CalculateRecordID() string {
 	return CalculateRecordID(r.Name, r.Value.Kind())
 }
