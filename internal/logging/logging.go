@@ -77,11 +77,3 @@ func parseConfig() config {
 
 	return cfg
 }
-
-func (c config) isDevelopment() bool {
-	return c.Env == "development"
-}
-
-func (c config) isProduction() bool {
-	return c.Env == "production"
-}
