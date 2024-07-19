@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -111,6 +112,10 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 
 	mex := new(metrics.MetricExchange)
 	if err := json.NewDecoder(req.Body).Decode(mex); err != nil {
+		if err == io.EOF {
+			err = errors.New("no json provided")
+		}
+
 		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
 		return
 	}
@@ -138,23 +143,6 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 	if err := json.NewEncoder(rw).Encode(mex); err != nil {
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
-	}
-}
-
-func errToStatus(err error) int {
-	switch err {
-	case entities.ErrMetricNotFound, entities.ErrMetricMissingName:
-		return http.StatusNotFound
-	case
-		entities.ErrMetricUnknown, entities.ErrMetricInvalidValue,
-		entities.ErrMetricInvalidName, entities.ErrMetricLongName,
-		entities.ErrMetricMissingValue:
-
-		return http.StatusBadRequest
-	case entities.ErrUnexpected:
-		return http.StatusInternalServerError
-	default:
-		return http.StatusInternalServerError
 	}
 }
 
@@ -218,5 +206,22 @@ func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request)
 	if err := json.NewEncoder(rw).Encode(mex); err != nil {
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
+	}
+}
+
+func errToStatus(err error) int {
+	switch err {
+	case entities.ErrMetricNotFound, entities.ErrMetricMissingName:
+		return http.StatusNotFound
+	case
+		entities.ErrMetricUnknown, entities.ErrMetricInvalidValue,
+		entities.ErrMetricInvalidName, entities.ErrMetricLongName,
+		entities.ErrMetricMissingValue:
+
+		return http.StatusBadRequest
+	case entities.ErrUnexpected:
+		return http.StatusInternalServerError
+	default:
+		return http.StatusInternalServerError
 	}
 }

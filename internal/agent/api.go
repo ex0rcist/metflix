@@ -1,8 +1,9 @@
 package agent
 
 import (
+	"bytes"
 	"context"
-	"fmt"
+	"encoding/json"
 	"io"
 	"net/http"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/rs/zerolog/log"
 )
 
 type API struct {
@@ -37,21 +39,38 @@ func (c *API) Report(name string, metric metrics.Metric) *API {
 	ctx := context.Background()
 
 	// todo: another transport?
-	url := "http://" + c.address.String() + fmt.Sprintf("/update/%s/%s/%s", metric.Kind(), name, metric)
+	url := "http://" + c.address.String() + "/update"
 
-	req, err := http.NewRequest(http.MethodPost, url, http.NoBody)
+	var mex metrics.MetricExchange
+
+	// HELP: можно ли тут вместо приведения типов
+	// использовать рефлексию через metric.(type) ?
+	switch metric.Kind() {
+	case "counter":
+		mex = metrics.NewUpdateCounterMex(name, metric.(metrics.Counter))
+	case "gauge":
+		mex = metrics.NewUpdateGaugeMex(name, metric.(metrics.Gauge))
+	default:
+		log.Warn().Msg("unknown metric") // todo
+	}
+
+	body, err := json.Marshal(mex)
+	if err != nil {
+		log.Warn().Msg("unknown metric") // todo
+	}
+
+	log.Info().Str("target", url).Str("payload", string(body)).Msg("sending report")
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		logging.LogError(ctx, err, "httpRequest error")
 	}
 
-	req.Header.Set("Content-Type", "text/plain")
-
-	logging.LogInfo(ctx, fmt.Sprintf("sending POST to %v", url))
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
-
 	if err != nil {
-		logging.LogError(ctx, err, "httpClient error")
+		log.Warn().Msg("httpClient error") // todo
 		return c
 	}
 

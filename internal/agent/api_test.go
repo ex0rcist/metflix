@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 
@@ -29,8 +31,16 @@ func TestNewApi(t *testing.T) {
 
 func TestApiClientReport(t *testing.T) {
 	rtf := func(req *http.Request) *http.Response {
-		assert.Equal(t, "http://localhost:8080/update/counter/Test/0", req.URL.String())
+		assert.Equal(t, "http://localhost:8080/update", req.URL.String())
 		assert.Equal(t, http.MethodPost, req.Method)
+
+		expectedJSON, err := json.Marshal(metrics.NewUpdateCounterMex("test", 42))
+		require.NoError(t, err)
+
+		actualJSON, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		assert.Equal(t, expectedJSON, actualJSON)
 
 		return &http.Response{
 			StatusCode: 200,
@@ -42,5 +52,5 @@ func TestApiClientReport(t *testing.T) {
 	address := entities.Address("localhost:8080")
 
 	api := NewAPI(&address, RoundTripFunc(rtf))
-	api.Report("Test", metrics.Counter(0))
+	api.Report("test", metrics.Counter(42))
 }
