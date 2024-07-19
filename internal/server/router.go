@@ -15,6 +15,7 @@ func NewRouter(storageService storage.StorageService) http.Handler {
 
 	router.Use(middleware.RealIP)
 	router.Use(logging.RequestsLogger)
+	router.Use(middleware.StripSlashes)
 
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound) // no default body
