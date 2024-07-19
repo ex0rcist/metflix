@@ -39,7 +39,7 @@ func (c *API) Report(name string, metric metrics.Metric) *API {
 	ctx := context.Background()
 
 	// todo: another transport?
-	url := "http://" + c.address.String() + "/update/"
+	url := "http://" + c.address.String() + "/update"
 
 	var mex metrics.MetricExchange
 
