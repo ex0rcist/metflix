@@ -12,7 +12,7 @@ import (
 )
 
 type Server struct {
-	Config  *Config
+	config  *Config
 	Storage storage.MetricsStorage
 	Router  http.Handler
 }
@@ -32,42 +32,40 @@ func New() (*Server, error) {
 	router := NewRouter(storageService)
 
 	return &Server{
-		Config:  config,
+		config:  config,
 		Storage: memStorage,
 		Router:  router,
 	}, nil
 }
 
 func (s *Server) ParseFlags() error {
-	address := s.Config.Address
+	address := s.config.Address
 
-	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests") // HELP: "&"" because Set() has pointer receiver?
+	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
 	pflag.Parse()
 
 	// because VarP gets non-pointer value, set it manually
 	pflag.Visit(func(f *pflag.Flag) {
 		switch f.Name {
 		case "address":
-			s.Config.Address = address
+			s.config.Address = address
 		}
 	})
 
-	if err := env.Parse(s.Config); err != nil {
-		return logging.NewError(err)
+	if err := env.Parse(s.config); err != nil {
+		return entities.NewStackError(err)
 	}
 
 	return nil
 }
 
 func (s *Server) Run() error {
-	// HELP: почему тип, реализующий String() не приводится к строке автоматически?
-	err := http.ListenAndServe(s.Config.Address.String(), s.Router)
-	return err
+	logging.LogInfo(s.config.String())
+	logging.LogInfo("server ready")
+
+	return http.ListenAndServe(s.config.Address.String(), s.Router)
 }
 
 func (c Config) String() string {
-	out := "server config: "
-
-	out += fmt.Sprintf("address=%s\t", c.Address)
-	return out
+	return "server config: " + fmt.Sprintf("address=%s\t", c.Address)
 }

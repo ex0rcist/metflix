@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -46,7 +45,7 @@ func New() (*Agent, error) {
 func (a *Agent) ParseFlags() error {
 	address := a.Config.Address
 
-	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests") // HELP: "&"" because Set() has pointer receiver?
+	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
 
 	pflag.IntVarP(&a.Config.PollInterval, "poll-interval", "p", a.Config.PollInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&a.Config.ReportInterval, "report-interval", "r", a.Config.ReportInterval, "interval (s) for polling stats")
@@ -69,6 +68,9 @@ func (a *Agent) ParseFlags() error {
 }
 
 func (a *Agent) Run() {
+	logging.LogInfo(a.Config.String())
+	logging.LogInfo("agent ready")
+
 	a.wg.Add(2)
 
 	go a.startPolling()
@@ -80,12 +82,10 @@ func (a *Agent) Run() {
 func (a *Agent) startPolling() {
 	defer a.wg.Done()
 
-	ctx := context.Background()
-
 	for {
 		err := a.Stats.Poll()
 		if err != nil {
-			logging.LogError(ctx, err)
+			logging.LogError(err)
 		}
 
 		time.Sleep(intToDuration(a.Config.PollInterval))
@@ -103,9 +103,7 @@ func (a *Agent) startReporting() {
 }
 
 func (a *Agent) reportStats() {
-	ctx := context.Background()
-
-	logging.LogInfo(ctx, "reporting stats ... ")
+	logging.LogInfo("reporting stats ... ")
 
 	// agent continues polling while report is in progress, take snapshot?
 	snapshot := *a.Stats
@@ -154,10 +152,8 @@ func intToDuration(s int) time.Duration {
 }
 
 func (c Config) String() string {
-	out := "agent config: "
-
-	out += fmt.Sprintf("address=%v \t", c.Address)
-	out += fmt.Sprintf("poll-interval=%v \t", c.PollInterval)
-	out += fmt.Sprintf("report-interval=%v \t", c.ReportInterval)
-	return out
+	return fmt.Sprintf(
+		"agent config: address=%v; poll-interval=%v; report-interval=%v",
+		c.Address, c.PollInterval, c.ReportInterval,
+	)
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/stretchr/testify/assert"
@@ -34,13 +35,16 @@ func TestApiClientReport(t *testing.T) {
 		assert.Equal(t, "http://localhost:8080/update", req.URL.String())
 		assert.Equal(t, http.MethodPost, req.Method)
 
-		expectedJSON, err := json.Marshal(metrics.NewUpdateCounterMex("test", 42))
+		payload, err := json.Marshal(metrics.NewUpdateCounterMex("test", 42))
 		require.NoError(t, err)
 
-		actualJSON, err := io.ReadAll(req.Body)
+		expectedPayload, err := compression.Pack(payload)
 		require.NoError(t, err)
 
-		assert.Equal(t, expectedJSON, actualJSON)
+		actualPayload, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+
+		assert.Equal(t, expectedPayload.Bytes(), actualPayload)
 
 		return &http.Response{
 			StatusCode: 200,

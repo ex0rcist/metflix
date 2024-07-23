@@ -17,5 +17,12 @@ var (
 	ErrStoragePush  = errors.New("failed to push record")
 	ErrStorageFetch = errors.New("failed to get record")
 
+	ErrEncodingInternal    = errors.New("internal encoding error")
+	ErrEncodingUnsupported = errors.New("requsted encoding is not supported")
+
 	ErrUnexpected = errors.New("unexpected error")
 )
+
+func NewStackError(err error) error {
+	return errors.New(err.Error()) // TODO: can we remove this func from stack?
+}

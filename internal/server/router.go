@@ -3,19 +3,22 @@ package server
 import (
 	"net/http"
 
-	"github.com/go-chi/chi/middleware"
+	chimdlw "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/middleware"
 	"github.com/ex0rcist/metflix/internal/storage"
 )
 
 func NewRouter(storageService storage.StorageService) http.Handler {
 	router := chi.NewRouter()
 
-	router.Use(middleware.RealIP)
-	router.Use(logging.RequestsLogger)
-	router.Use(middleware.StripSlashes)
+	router.Use(chimdlw.RealIP)
+	router.Use(chimdlw.StripSlashes)
+
+	router.Use(middleware.RequestsLogger)
+	router.Use(middleware.DecompressRequest)
+	router.Use(middleware.CompressResponse)
 
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound) // no default body

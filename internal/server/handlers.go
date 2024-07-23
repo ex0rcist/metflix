@@ -26,7 +26,7 @@ func NewMetricResource(storageService storage.StorageService) MetricResource {
 }
 
 func writeErrorResponse(ctx context.Context, w http.ResponseWriter, code int, err error) {
-	logging.LogError(ctx, err)
+	logging.LogErrorCtx(ctx, err)
 
 	w.WriteHeader(code) // only header for now
 
@@ -54,7 +54,7 @@ func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
 
 	_, err = rw.Write([]byte(body))
 	if err != nil {
-		logging.LogError(ctx, err)
+		logging.LogErrorCtx(ctx, err)
 	}
 }
 

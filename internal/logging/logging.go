@@ -9,64 +9,47 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
 )
 
 type config struct {
-	Env string `env:"APP_ENV" envDefault:"development"`
+	ENV string `env:"APP_ENV" envDefault:"development"`
 }
 
-func Setup(ctx context.Context) context.Context {
+func Setup() {
 	cfg := parseConfig()
 
 	var output io.Writer
-	switch cfg.Env {
+	var logger zerolog.Logger
+
+	switch cfg.ENV {
+	case "tracing":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+		zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+
+		output = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339Nano}
 	case "development":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
 		output = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339Nano}
 	case "production":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
 		output = os.Stdout
 	}
 
-	logger := zerolog.New(output).With().Timestamp().Logger()
-
-	// set global logger
-	log.Logger = logger
-
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-	zerolog.DefaultContextLogger = &logger
-
-	// added logger to ctx
-	return logger.WithContext(ctx)
-}
-
-func NewError(err error) error { // wrap err to pkg/errors
-	return errors.New(err.Error()) // TODO: can we remove this func from stack?
-}
-
-func LogError(ctx context.Context, err error, messages ...string) {
-	msg := optMessagesToString(messages)
-	zerolog.Ctx(ctx).Error().Stack().Err(err).Msg(msg)
-}
-
-func LogFatal(ctx context.Context, err error, messages ...string) {
-	msg := optMessagesToString(messages)
-	zerolog.Ctx(ctx).Fatal().Stack().Err(err).Msg(msg)
-}
-
-func LogInfo(ctx context.Context, messages ...string) {
-	msg := optMessagesToString(messages)
-	zerolog.Ctx(ctx).Info().Msg(msg)
-}
-
-func optMessagesToString(messages []string) string {
-	if len(messages) == 0 {
-		return ""
+	loggerCtx := zerolog.New(output).With().Timestamp()
+	switch {
+	case isTraceLevel():
+		logger = loggerCtx.Caller().Logger()
+	default:
+		logger = loggerCtx.Logger()
 	}
 
-	return strings.Join(messages, "; ")
+	log.Logger = logger
+	zerolog.DefaultContextLogger = &logger
 }
 
 func parseConfig() config {
@@ -76,4 +59,32 @@ func parseConfig() config {
 	}
 
 	return cfg
+}
+
+func optMessagesToString(messages []string) string {
+	if len(messages) == 0 {
+		return ""
+	}
+
+	// remove empty
+	var result []string
+	for _, str := range messages {
+		if str != "" {
+			result = append(result, str)
+		}
+	}
+
+	return strings.Join(result, "; ")
+}
+
+func loggerFromContext(ctx context.Context) *zerolog.Logger {
+	return zerolog.Ctx(ctx)
+}
+
+func isDebugLevel() bool {
+	return zerolog.GlobalLevel() == zerolog.DebugLevel
+}
+
+func isTraceLevel() bool {
+	return zerolog.GlobalLevel() == zerolog.TraceLevel
 }
