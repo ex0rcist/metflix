@@ -85,8 +85,8 @@ func CompressResponse(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		if len(r.Header.Get("Accept-Encoding")) == 0 {
-			logging.LogDebugCtx(ctx, "compression not requested by client")
+		if !needGzipEncoding(r) {
+			logging.LogDebugCtx(ctx, "compression not requested or not supported by client")
 
 			next.ServeHTTP(w, r)
 			return
@@ -107,4 +107,18 @@ func findOrCreateRequestID(r *http.Request) string {
 	}
 
 	return requestID
+}
+
+func needGzipEncoding(r *http.Request) bool {
+	if len(r.Header.Get("Accept-Encoding")) == 0 {
+		return false
+	}
+
+	for _, encoding := range r.Header.Values("Accept-Encoding") {
+		if encoding == "gzip" {
+			return true
+		}
+	}
+
+	return false
 }

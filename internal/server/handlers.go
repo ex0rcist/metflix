@@ -52,6 +52,8 @@ func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	rw.Header().Set("Content-Type", "text/html")
+
 	_, err = rw.Write([]byte(body))
 	if err != nil {
 		logging.LogErrorCtx(ctx, err)
