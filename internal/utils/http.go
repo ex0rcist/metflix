@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 )
 
@@ -14,6 +15,10 @@ func HeadersToStr(headers http.Header) string {
 			stringsSlice = append(stringsSlice, fmt.Sprintf("%s:%s", name, value))
 		}
 	}
+
+	sort.Slice(stringsSlice, func(i, j int) bool {
+		return stringsSlice[i] < stringsSlice[j]
+	})
 
 	return strings.Join(stringsSlice, ", ")
 }

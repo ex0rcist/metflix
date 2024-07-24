@@ -379,7 +379,7 @@ func TestGetMetricJSON(t *testing.T) {
 			name: "Should fail on unknown counter",
 			mex:  metrics.NewGetCounterMex("test"),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "counter").Return(storage.Record{}, entities.ErrMetricNotFound)
+				m.On("Get", "test", "counter").Return(storage.Record{}, entities.ErrRecordNotFound)
 			},
 			expected: result{
 				code: http.StatusNotFound,
@@ -389,7 +389,7 @@ func TestGetMetricJSON(t *testing.T) {
 			name: "Should fail on unknown gauge",
 			mex:  metrics.NewGetGaugeMex("test"),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "gauge").Return(storage.Record{}, entities.ErrMetricNotFound)
+				m.On("Get", "test", "gauge").Return(storage.Record{}, entities.ErrRecordNotFound)
 			},
 			expected: result{
 				code: http.StatusNotFound,

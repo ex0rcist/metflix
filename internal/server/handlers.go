@@ -213,7 +213,7 @@ func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request)
 
 func errToStatus(err error) int {
 	switch err {
-	case entities.ErrMetricNotFound, entities.ErrMetricMissingName:
+	case entities.ErrRecordNotFound, entities.ErrMetricMissingName:
 		return http.StatusNotFound
 	case
 		entities.ErrMetricUnknown, entities.ErrMetricInvalidValue,

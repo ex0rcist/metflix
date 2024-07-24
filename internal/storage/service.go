@@ -39,15 +39,13 @@ func (s Service) Get(name, kind string) (Record, error) {
 }
 
 func (s Service) Push(record Record) (Record, error) {
-	id := CalculateRecordID(record.Name, record.Value.Kind())
-
-	newValue, err := s.calculateNewValue(id, record)
+	newValue, err := s.calculateNewValue(record)
 	if err != nil {
 		return Record{}, err
 	}
 
 	record.Value = newValue
-	err = s.storage.Push(id, record)
+	err = s.storage.Push(record.CalculateRecordID(), record)
 
 	if err != nil {
 		return Record{}, err
@@ -69,17 +67,22 @@ func (s Service) List() ([]Record, error) {
 	return records, nil
 }
 
-func (s Service) calculateNewValue(id string, newRecord Record) (metrics.Metric, error) {
-	if newRecord.Value.Kind() != "counter" {
-		return newRecord.Value, nil
+func (s Service) calculateNewValue(record Record) (metrics.Metric, error) {
+	if record.Value.Kind() != "counter" {
+		return record.Value, nil
+	}
+
+	id := record.CalculateRecordID()
+	if id == "" {
+		return record.Value, entities.ErrMetricMissingName
 	}
 
 	storedRecord, err := s.storage.Get(id)
-	if errors.Is(err, entities.ErrMetricNotFound) {
-		return newRecord.Value, nil
+	if errors.Is(err, entities.ErrRecordNotFound) {
+		return record.Value, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	return storedRecord.Value.(metrics.Counter) + newRecord.Value.(metrics.Counter), nil
+	return storedRecord.Value.(metrics.Counter) + record.Value.(metrics.Counter), nil
 }
