@@ -70,4 +70,6 @@ func (d *Decompressor) Close() {
 	if err := d.reader.Close(); err != nil {
 		logging.LogErrorCtx(d.context, err, "error closing decompressor reader", err.Error())
 	}
+
+	d.reader = nil
 }

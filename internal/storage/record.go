@@ -43,7 +43,7 @@ func (r *Record) UnmarshalJSON(src []byte) error {
 	var data map[string]string
 
 	if err := json.Unmarshal(src, &data); err != nil {
-		return unmarshalFailed(err)
+		return fmt.Errorf("record unmarshaling failed: %w", err)
 	}
 
 	r.Name = data["name"]
@@ -52,24 +52,20 @@ func (r *Record) UnmarshalJSON(src []byte) error {
 	case "counter":
 		value, err := metrics.ToCounter(data["value"])
 		if err != nil {
-			return unmarshalFailed(err)
+			return fmt.Errorf("record unmarshaling failed: %w", err)
 		}
 
 		r.Value = value
 	case "gauge":
 		value, err := metrics.ToGauge(data["value"])
 		if err != nil {
-			return unmarshalFailed(err)
+			return fmt.Errorf("record unmarshaling failed: %w", err)
 		}
 
 		r.Value = value
 	default:
-		return unmarshalFailed(entities.ErrMetricUnknown)
+		return fmt.Errorf("record unmarshaling failed: %w", entities.ErrMetricUnknown)
 	}
 
 	return nil
-}
-
-func unmarshalFailed(reason error) error {
-	return fmt.Errorf("record unmarshaling failed: %w", reason)
 }

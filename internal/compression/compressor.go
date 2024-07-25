@@ -58,4 +58,6 @@ func (c *Compressor) Close() {
 	if err := c.encoder.Close(); err != nil {
 		logging.LogErrorCtx(c.context, err, "error closing compressor encoder", err.Error())
 	}
+
+	c.encoder = nil
 }

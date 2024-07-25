@@ -1,9 +1,13 @@
 package storage
 
 import (
+	"encoding/json"
+	"strconv"
 	"testing"
 
+	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCalculateRecordID(t *testing.T) {
@@ -46,6 +50,57 @@ func TestRecord_CalculateRecordID(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
+		})
+	}
+}
+
+func TestRecordMarshalingNormalData(t *testing.T) {
+	tests := []struct {
+		name   string
+		source Record
+	}{
+		{name: "Should convert counter", source: Record{Name: "PollCount", Value: metrics.Counter(10)}},
+		{name: "Should convert gauge", source: Record{Name: "Alloc", Value: metrics.Gauge(42.0)}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			json, err := tt.source.MarshalJSON()
+			if err != nil {
+				t.Fatalf("expected no error marshaling json, got: %v", err)
+			}
+
+			target := new(Record)
+			err = target.UnmarshalJSON(json)
+			if err != nil {
+				t.Fatalf("expected no error unmarshaling json, got: %v", err)
+			}
+
+			if tt.source != *target {
+				t.Fatal("expected records to be equal:", tt.source, target)
+			}
+		})
+	}
+}
+
+func TestRecordUnmarshalingCorruptedData(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     string
+		expected error
+	}{
+		{name: "Should fail on broken json", data: `{"name": "xxx",`, expected: &json.SyntaxError{}},
+		{name: "Should fail on invalid counter", data: `{"name": "xxx", "kind": "counter", "value": "12.345"}`, expected: strconv.ErrSyntax},
+		{name: "Should fail on invalid gauge", data: `{"name": "xxx", "kind": "gauge", "value": "12.)"}`, expected: strconv.ErrSyntax},
+		{name: "Should fail on unknown kind", data: `{"name": "xxx", "kind": "unknown", "value": "12"}`, expected: entities.ErrMetricUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := new(Record)
+
+			err := r.UnmarshalJSON([]byte(tt.data))
+			require.ErrorAs(t, err, &tt.expected)
 		})
 	}
 }

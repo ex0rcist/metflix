@@ -4,7 +4,28 @@ import (
 	"net/http"
 	"regexp"
 	"testing"
+	"time"
 )
+
+func TestIntToDuration(t *testing.T) {
+	tests := []struct {
+		input    int
+		expected time.Duration
+	}{
+		{input: 0, expected: 0 * time.Second},
+		{input: 1, expected: 1 * time.Second},
+		{input: 60, expected: 60 * time.Second},
+		{input: -1, expected: -1 * time.Second},
+		{input: 3600, expected: 3600 * time.Second},
+	}
+
+	for _, tt := range tests {
+		result := IntToDuration(tt.input)
+		if result != tt.expected {
+			t.Errorf("IntToDuration(%d) = %v; expected %v", tt.input, result, tt.expected)
+		}
+	}
+}
 
 func TestHeadersToStr(t *testing.T) {
 	tests := []struct {
