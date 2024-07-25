@@ -30,3 +30,7 @@ func (m *StorageMock) List() ([]Record, error) {
 
 	return args.Get(0).([]Record), args.Error(1)
 }
+
+func (m *StorageMock) Kind() string {
+	return KindMock
+}

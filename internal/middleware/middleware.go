@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/compression"
@@ -32,8 +33,6 @@ func RequestsLogger(next http.Handler) http.Handler {
 
 		logger.Debug().
 			Msgf("request: %s", utils.HeadersToStr(r.Header))
-
-		// TODO: context?
 
 		// execute
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
@@ -115,7 +114,7 @@ func needGzipEncoding(r *http.Request) bool {
 	}
 
 	for _, encoding := range r.Header.Values("Accept-Encoding") {
-		if encoding == "gzip" {
+		if strings.Contains(encoding, "gzip") {
 			return true
 		}
 	}

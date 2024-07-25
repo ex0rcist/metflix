@@ -60,11 +60,12 @@ func TestRun(t *testing.T) {
 	// pending: how to test lsitenAndServe? goroutine?
 }
 
-// TestConfigString tests the String method of Config.
-func TestConfigString(t *testing.T) {
-	config := Config{Address: "0.0.0.0:8080"}
-	expected := "server config: address=0.0.0.0:8080"
-	if config.String() != expected {
-		t.Errorf("Expected %v, got %v", expected, config.String())
+func TestString(t *testing.T) {
+	// config := Config{Address: "0.0.0.0:8080"}
+	srv, _ := New() // TODO
+
+	expected := "server config: address=0.0.0.0:8080; storage=memory"
+	if srv.String() != expected {
+		t.Errorf("Expected %v, got %v", expected, srv.String())
 	}
 }

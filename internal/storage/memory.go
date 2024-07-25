@@ -8,23 +8,23 @@ import (
 var _ MetricsStorage = (*MemStorage)(nil)
 
 type MemStorage struct {
-	data map[string]Record
+	Data map[string]Record `json:"records"`
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		data: make(map[string]Record),
+		Data: make(map[string]Record),
 	}
 }
 
 func (s *MemStorage) Push(id string, record Record) error {
-	s.data[id] = record
+	s.Data[id] = record
 
 	return nil
 }
 
 func (s *MemStorage) Get(id string) (Record, error) {
-	record, ok := s.data[id]
+	record, ok := s.Data[id]
 	if !ok {
 		return Record{}, entities.ErrRecordNotFound
 	}
@@ -33,13 +33,27 @@ func (s *MemStorage) Get(id string) (Record, error) {
 }
 
 func (s *MemStorage) List() ([]Record, error) {
-	arr := make([]Record, len(s.data))
+	arr := make([]Record, len(s.Data))
 
 	i := 0
-	for _, record := range s.data {
+	for _, record := range s.Data {
 		arr[i] = record
 		i++
 	}
 
 	return arr, nil
+}
+
+func (s *MemStorage) Snapshot() *MemStorage {
+	snapshot := make(map[string]Record, len(s.Data))
+
+	for k, v := range s.Data {
+		snapshot[k] = v
+	}
+
+	return &MemStorage{Data: snapshot}
+}
+
+func (s *MemStorage) Kind() string {
+	return KindMemory
 }

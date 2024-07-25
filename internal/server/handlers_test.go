@@ -106,7 +106,7 @@ func TestUpdateMetric(t *testing.T) {
 		want result
 	}{
 		{
-			name: "push counter",
+			name: "Should push counter",
 			path: "/update/counter/test/42",
 			mock: func(m *storage.ServiceMock) {
 				m.On("Get", "test", "counter").Return(storage.Record{}, nil)
@@ -115,7 +115,7 @@ func TestUpdateMetric(t *testing.T) {
 			want: result{code: http.StatusOK, body: "42"},
 		},
 		{
-			name: "push counter with existing value",
+			name: "Should push counter with existing value",
 			path: "/update/counter/test/42",
 			mock: func(m *storage.ServiceMock) {
 				m.On("Get", "test", "counter").Return(storage.Record{Name: "test", Value: metrics.Counter(21)}, nil)
@@ -124,7 +124,7 @@ func TestUpdateMetric(t *testing.T) {
 			want: result{code: http.StatusOK, body: "42"},
 		},
 		{
-			name: "push gauge",
+			name: "Should push gauge",
 			path: "/update/gauge/test/42.42",
 			mock: func(m *storage.ServiceMock) {
 				m.On("Push", mock.AnythingOfType("Record")).Return(storage.Record{Name: "test", Value: metrics.Gauge(42.42)}, nil)
@@ -132,32 +132,32 @@ func TestUpdateMetric(t *testing.T) {
 			want: result{code: http.StatusOK, body: "42.42"},
 		},
 		{
-			name: "fail on invalid kind",
+			name: "Should fail on invalid kind",
 			path: "/update/xxx/test/1",
 			want: result{code: http.StatusBadRequest},
 		},
 		{
-			name: "fail on empty metric name",
+			name: "Should fail on empty metric name",
 			path: "/update/counter//1",
 			want: result{code: http.StatusNotFound},
 		},
 		{
-			name: "fail on counter with invalid name",
+			name: "Should fail on counter with invalid name",
 			path: "/update/counter/inva!id/10",
 			want: result{code: http.StatusBadRequest},
 		},
 		{
-			name: "fail on counter with invalid value",
+			name: "Should fail on counter with invalid value",
 			path: "/update/counter/test/10.0",
 			want: result{code: http.StatusBadRequest},
 		},
 		{
-			name: "fail on gauge with invalid name",
+			name: "Should fail on gauge with invalid name",
 			path: "/update/gauge/inval!d/42.42",
 			want: result{code: http.StatusBadRequest},
 		},
 		{
-			name: "fail on gauge with invalid value",
+			name: "Should fail on gauge with invalid value",
 			path: "/update/gauge/test/42.42!",
 			want: result{code: http.StatusBadRequest},
 		},

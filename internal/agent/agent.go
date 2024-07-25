@@ -8,6 +8,7 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/spf13/pflag"
 )
 
@@ -88,7 +89,7 @@ func (a *Agent) startPolling() {
 			logging.LogError(err)
 		}
 
-		time.Sleep(intToDuration(a.Config.PollInterval))
+		time.Sleep(utils.IntToDuration(a.Config.PollInterval))
 	}
 }
 
@@ -96,7 +97,7 @@ func (a *Agent) startReporting() {
 	defer a.wg.Done()
 
 	for {
-		time.Sleep(intToDuration(a.Config.ReportInterval))
+		time.Sleep(utils.IntToDuration(a.Config.ReportInterval))
 
 		a.reportStats()
 	}
@@ -145,10 +146,6 @@ func (a *Agent) reportStats() {
 
 	// because metrics.Counter adds value to itself
 	a.Stats.PollCount -= snapshot.PollCount
-}
-
-func intToDuration(s int) time.Duration {
-	return time.Duration(s) * time.Second
 }
 
 func (c Config) String() string {
