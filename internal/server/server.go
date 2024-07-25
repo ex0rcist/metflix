@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
@@ -12,9 +13,10 @@ import (
 )
 
 type Server struct {
-	config  *Config
-	Storage storage.MetricsStorage
-	Router  http.Handler
+	config     *Config
+	httpServer *http.Server
+	Storage    storage.MetricsStorage
+	Router     http.Handler
 }
 
 type Config struct {
@@ -26,34 +28,60 @@ func New() (*Server, error) {
 		Address: "0.0.0.0:8080",
 	}
 
+	err := parseFlags(config, os.Args[0], os.Args[1:])
+	if err != nil {
+		return nil, err
+	}
+
+	err = parseEnv(config)
+	if err != nil {
+		return nil, err
+	}
+
 	memStorage := storage.NewMemStorage()
 	storageService := storage.NewService(memStorage)
-
 	router := NewRouter(storageService)
 
+	httpServer := &http.Server{
+		Addr:    config.Address.String(),
+		Handler: router,
+	}
+
 	return &Server{
-		config:  config,
-		Storage: memStorage,
-		Router:  router,
+		config:     config,
+		httpServer: httpServer,
+		Storage:    memStorage,
+		Router:     router,
 	}, nil
 }
 
-func (s *Server) ParseFlags() error {
-	address := s.config.Address
+func parseFlags(config *Config, progname string, args []string) error {
+	flags := pflag.NewFlagSet(progname, pflag.ContinueOnError)
 
-	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
-	pflag.Parse()
+	address := config.Address
+
+	flags.VarP(&address, "address", "a", "address:port for HTTP API requests")
+	err := flags.Parse(args)
+
+	if err != nil {
+		return err
+	}
 
 	// because VarP gets non-pointer value, set it manually
-	pflag.Visit(func(f *pflag.Flag) {
+	flags.Visit(func(f *pflag.Flag) {
 		switch f.Name {
 		case "address":
-			s.config.Address = address
+			config.Address = address
 		}
 	})
 
-	if err := env.Parse(s.config); err != nil {
-		return entities.NewStackError(err)
+	return nil
+}
+
+func parseEnv(config *Config) error {
+	fmt.Println("====== " + os.Getenv("ADDRESS") + " ======")
+	if err := env.Parse(config); err != nil {
+		return err
 	}
 
 	return nil
@@ -63,9 +91,9 @@ func (s *Server) Run() error {
 	logging.LogInfo(s.config.String())
 	logging.LogInfo("server ready")
 
-	return http.ListenAndServe(s.config.Address.String(), s.Router)
+	return s.httpServer.ListenAndServe()
 }
 
 func (c Config) String() string {
-	return "server config: " + fmt.Sprintf("address=%s\t", c.Address)
+	return "server config: " + fmt.Sprintf("address=%s", c.Address)
 }

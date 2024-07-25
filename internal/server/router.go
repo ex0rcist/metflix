@@ -26,7 +26,7 @@ func NewRouter(storageService storage.StorageService) http.Handler {
 
 	resource := NewMetricResource(storageService)
 
-	router.Get("/", resource.Homepage) // TODO: resource?
+	router.Get("/", resource.Homepage)
 
 	router.Post("/update/{metricKind}/{metricName}/{metricValue}", resource.UpdateMetric)
 	router.Post("/update", resource.UpdateMetricJSON)

@@ -15,11 +15,6 @@ func main() {
 		logging.LogFatal(err)
 	}
 
-	err = srv.ParseFlags()
-	if err != nil {
-		logging.LogFatal(err)
-	}
-
 	err = srv.Run()
 	if err != nil {
 		logging.LogFatal(err)
