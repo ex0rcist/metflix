@@ -109,7 +109,7 @@ func TestUpdateMetric(t *testing.T) {
 			name: "Should push counter",
 			path: "/update/counter/test/42",
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "counter").Return(storage.Record{}, nil)
+				m.On("Get", "test", metrics.KindCounter).Return(storage.Record{}, nil)
 				m.On("Push", mock.AnythingOfType("Record")).Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
 			},
 			want: result{code: http.StatusOK, body: "42"},
@@ -118,7 +118,7 @@ func TestUpdateMetric(t *testing.T) {
 			name: "Should push counter with existing value",
 			path: "/update/counter/test/42",
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "counter").Return(storage.Record{Name: "test", Value: metrics.Counter(21)}, nil)
+				m.On("Get", "test", metrics.KindCounter).Return(storage.Record{Name: "test", Value: metrics.Counter(21)}, nil)
 				m.On("Push", mock.AnythingOfType("Record")).Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
 			},
 			want: result{code: http.StatusOK, body: "42"},
@@ -196,7 +196,7 @@ func TestUpdateJSONMetric(t *testing.T) {
 			name: "Should push counter",
 			mex:  metrics.NewUpdateCounterMex("test", 42),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "counter").Return(storage.Record{}, nil)
+				m.On("Get", "test", metrics.KindCounter).Return(storage.Record{}, nil)
 				m.On("Push", mock.AnythingOfType("Record")).Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
 			},
 			want: result{code: http.StatusOK},
@@ -283,7 +283,7 @@ func TestGetMetric(t *testing.T) {
 			name: "get counter",
 			path: "/value/counter/test",
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "counter").Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
+				m.On("Get", "test", metrics.KindCounter).Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
 			},
 			want: result{code: http.StatusOK, body: "42"},
 		},
@@ -291,7 +291,7 @@ func TestGetMetric(t *testing.T) {
 			name: "get gauge",
 			path: "/value/gauge/test",
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "gauge").Return(storage.Record{Name: "test", Value: metrics.Gauge(42.42)}, nil)
+				m.On("Get", "test", metrics.KindGauge).Return(storage.Record{Name: "test", Value: metrics.Gauge(42.42)}, nil)
 			},
 			want: result{code: http.StatusOK, body: "42.42"},
 		},
@@ -350,7 +350,7 @@ func TestGetMetricJSON(t *testing.T) {
 			name: "Should get counter",
 			mex:  metrics.NewGetCounterMex("test"),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "counter").Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
+				m.On("Get", "test", metrics.KindCounter).Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
 			},
 			expected: result{
 				code: http.StatusOK,
@@ -361,7 +361,7 @@ func TestGetMetricJSON(t *testing.T) {
 			name: "Should get gauge",
 			mex:  metrics.NewGetGaugeMex("test"),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "gauge").Return(storage.Record{Name: "test", Value: metrics.Gauge(42.42)}, nil)
+				m.On("Get", "test", metrics.KindGauge).Return(storage.Record{Name: "test", Value: metrics.Gauge(42.42)}, nil)
 			},
 			expected: result{
 				code: http.StatusOK,
@@ -379,7 +379,7 @@ func TestGetMetricJSON(t *testing.T) {
 			name: "Should fail on unknown counter",
 			mex:  metrics.NewGetCounterMex("test"),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "counter").Return(storage.Record{}, entities.ErrRecordNotFound)
+				m.On("Get", "test", metrics.KindCounter).Return(storage.Record{}, entities.ErrRecordNotFound)
 			},
 			expected: result{
 				code: http.StatusNotFound,
@@ -389,7 +389,7 @@ func TestGetMetricJSON(t *testing.T) {
 			name: "Should fail on unknown gauge",
 			mex:  metrics.NewGetGaugeMex("test"),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "gauge").Return(storage.Record{}, entities.ErrRecordNotFound)
+				m.On("Get", "test", metrics.KindGauge).Return(storage.Record{}, entities.ErrRecordNotFound)
 			},
 			expected: result{
 				code: http.StatusNotFound,
@@ -413,7 +413,7 @@ func TestGetMetricJSON(t *testing.T) {
 			name: "Should fail on broken service",
 			mex:  metrics.NewGetGaugeMex("test"),
 			mock: func(m *storage.ServiceMock) {
-				m.On("Get", "test", "gauge").Return(storage.Record{}, entities.ErrUnexpected)
+				m.On("Get", "test", metrics.KindGauge).Return(storage.Record{}, entities.ErrUnexpected)
 			},
 			expected: result{
 				code: http.StatusInternalServerError,

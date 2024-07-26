@@ -13,12 +13,12 @@ func TestKind(t *testing.T) {
 		{
 			name:   "kind = counter",
 			metric: Counter(1),
-			want:   "counter",
+			want:   KindCounter,
 		},
 		{
 			name:   "kind = gauge",
 			metric: Gauge(1.01),
-			want:   "gauge",
+			want:   KindGauge,
 		},
 	}
 	for _, tt := range tests {

@@ -11,8 +11,8 @@ func TestMemStorage_Push(t *testing.T) {
 	strg := NewMemStorage()
 
 	records := []Record{
-		{Name: "counter", Value: metrics.Counter(42)},
-		{Name: "gauge", Value: metrics.Gauge(42.42)},
+		{Name: metrics.KindCounter, Value: metrics.Counter(42)},
+		{Name: metrics.KindGauge, Value: metrics.Gauge(42.42)},
 	}
 
 	for _, r := range records {
@@ -102,8 +102,8 @@ func TestMemStorage_List(t *testing.T) {
 	storage := NewMemStorage()
 
 	records := []Record{
-		{Name: "gauge", Value: metrics.Gauge(42.42)},
-		{Name: "counter", Value: metrics.Counter(42)},
+		{Name: metrics.KindGauge, Value: metrics.Gauge(42.42)},
+		{Name: metrics.KindCounter, Value: metrics.Counter(42)},
 	}
 
 	err := storage.Push(records[0].CalculateRecordID(), records[0])

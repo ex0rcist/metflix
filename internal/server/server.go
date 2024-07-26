@@ -5,13 +5,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/storage"
-	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/spf13/pflag"
 )
 
@@ -65,67 +63,26 @@ func New() (*Server, error) {
 
 func (s *Server) Run() error {
 	logging.LogInfo(s.String())
-
-	// restore storage if possible
-	if s.storageNeedsRestore() {
-		if err := s.restoreStorage(); err != nil {
-			return err
-		}
-	}
-
 	logging.LogInfo("server ready")
-
-	// start dumping if neede
-	if s.storageNeedsDumping() {
-		go s.startStorageDumping()
-	}
 
 	return s.httpServer.ListenAndServe()
 }
 
 func (s *Server) String() string {
+	kind := detectStorageKind(s.config)
+
 	str := []string{
 		fmt.Sprintf("address=%s", s.config.Address),
-		fmt.Sprintf("storage=%s", s.Storage.Kind()),
+		fmt.Sprintf("storage=%s", kind),
 	}
 
-	if s.Storage.Kind() == storage.KindFile {
+	if kind == storage.KindFile {
 		str = append(str, fmt.Sprintf("store-interval=%d", s.config.StoreInterval))
 		str = append(str, fmt.Sprintf("store-path=%s", s.config.StorePath))
 		str = append(str, fmt.Sprintf("restore=%t", s.config.RestoreOnStart))
 	}
 
 	return "server config: " + strings.Join(str, "; ")
-}
-
-func (s *Server) storageNeedsRestore() bool {
-	return s.Storage.Kind() == storage.KindFile && s.config.RestoreOnStart
-}
-
-func (s *Server) restoreStorage() error {
-	// HELP: не уверен что тут корректное решение... Но иначе нужно добавлять Restore() в интерфейс, а его логически нет у MemStorage
-	return s.Storage.(*storage.FileStorage).Restore()
-}
-
-func (s *Server) storageNeedsDumping() bool {
-	return s.Storage.Kind() == storage.KindFile && s.config.StoreInterval > 0
-}
-
-func (s *Server) startStorageDumping() {
-	ticker := time.NewTicker(utils.IntToDuration(s.config.StoreInterval))
-	defer ticker.Stop()
-
-	for {
-		_, ok := <-ticker.C
-		if !ok {
-			break
-		}
-
-		// HELP: не уверен что тут корректное решение... Но иначе нужно добавлять Dump() в интерфейс, а его логически нет у MemStorage
-		if err := s.Storage.(*storage.FileStorage).Dump(); err != nil {
-			logging.LogError(fmt.Errorf("error during FileStorage Dump(): %s", err.Error()))
-		}
-	}
 }
 
 func parseConfig(config *Config) error {
@@ -201,7 +158,7 @@ func newDataStorage(kind string, config *Config) (storage.MetricsStorage, error)
 	case storage.KindMemory:
 		return storage.NewMemStorage(), nil
 	case storage.KindFile:
-		return storage.NewFileStorage(config.StorePath, config.StoreInterval), nil
+		return storage.NewFileStorage(config.StorePath, config.StoreInterval, config.RestoreOnStart)
 	default:
 		return nil, fmt.Errorf("unknown storage type")
 	}

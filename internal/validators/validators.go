@@ -4,6 +4,7 @@ import (
 	"regexp"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/metrics"
 )
 
 var nameRegexp = regexp.MustCompile(`^[A-Za-z\d]+$`)
@@ -34,7 +35,7 @@ func validateMetricName(name string) error {
 
 func validateMetricKind(kind string) error {
 	switch kind {
-	case "counter", "gauge":
+	case metrics.KindCounter, metrics.KindGauge:
 		return nil
 
 	default:

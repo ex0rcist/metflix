@@ -29,9 +29,6 @@ func writeErrorResponse(ctx context.Context, w http.ResponseWriter, code int, er
 	logging.LogErrorCtx(ctx, err)
 
 	w.WriteHeader(code) // only header for now
-
-	// resp := fmt.Sprintf("%d %v", code, err)
-	// http.Error(w, resp, code)
 }
 
 func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
@@ -71,7 +68,7 @@ func (r MetricResource) UpdateMetric(rw http.ResponseWriter, req *http.Request) 
 	rawValue := req.PathValue("metricValue")
 
 	switch mex.MType {
-	case "counter":
+	case metrics.KindCounter:
 		delta, err := metrics.ToCounter(rawValue)
 		if err != nil {
 			writeErrorResponse(ctx, rw, errToStatus(err), err)
@@ -79,7 +76,7 @@ func (r MetricResource) UpdateMetric(rw http.ResponseWriter, req *http.Request) 
 		}
 
 		mex.Delta = &delta
-	case "gauge":
+	case metrics.KindGauge:
 		value, err := metrics.ToGauge(rawValue)
 		if err != nil {
 			writeErrorResponse(ctx, rw, errToStatus(err), err)

@@ -6,29 +6,30 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 )
 
+const (
+	KindCounter = "counter"
+	KindGauge   = "gauge"
+)
+
 type Metric interface {
 	Kind() string
 	String() string
 }
 
-// Counter
-
 type Counter int64
 
 func (c Counter) Kind() string {
-	return "counter"
+	return KindCounter
 }
 
 func (c Counter) String() string {
 	return strconv.FormatInt(int64(c), 10)
 }
 
-// Gauge
-
 type Gauge float64
 
 func (g Gauge) Kind() string {
-	return "gauge"
+	return KindGauge
 }
 
 func (g Gauge) String() string {
@@ -70,9 +71,9 @@ func NewUpdateGaugeMex(name string, value Gauge) MetricExchange {
 }
 
 func NewGetCounterMex(name string) MetricExchange {
-	return MetricExchange{ID: name, MType: "counter"}
+	return MetricExchange{ID: name, MType: KindCounter}
 }
 
 func NewGetGaugeMex(name string) MetricExchange {
-	return MetricExchange{ID: name, MType: "gauge"}
+	return MetricExchange{ID: name, MType: KindGauge}
 }

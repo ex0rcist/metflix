@@ -1,85 +1,120 @@
 package storage
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ex0rcist/metflix/internal/metrics"
-	"github.com/stretchr/testify/require"
 )
 
-func createStoreWithData(t *testing.T, storePath string, storeInterval int) *FileStorage {
-	store := NewFileStorage(storePath, storeInterval)
-
-	err := store.Push("test_gauge", Record{Name: "test", Value: metrics.Gauge(42.42)})
+func checkNoError(t *testing.T, err error, msg string) {
 	if err != nil {
-		t.Fatalf("expected no error on push, got %v", err)
+		t.Fatalf("%s: %v", msg, err)
 	}
-
-	err = store.Push("test2_counter", Record{Name: "test2", Value: metrics.Counter(1)})
-	if err != nil {
-		t.Fatalf("expected no error on push, got %v", err)
-	}
-
-	return store
 }
 
-func TestSyncDumpRestoreStorage(t *testing.T) {
-	storePath := "/tmp/db.json"
-
-	t.Cleanup(func() {
-		err := os.Remove(storePath)
-		if err != nil {
-			t.Fatalf("expected no error on cleanup, got %v", err)
-		}
-	})
-
-	store := createStoreWithData(t, storePath, 0)
-	storedData := store.Snapshot()
-
-	store = NewFileStorage(storePath, 0)
-	err := store.Restore()
-	if err != nil {
-		t.Fatalf("expected no error on restore, got %v", err)
+func removeFile(t *testing.T, path string) {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("failed to remove file: %v", err)
 	}
-
-	restoredData := store.Snapshot()
-	require.Equal(t, storedData, restoredData)
 }
 
-func TestAsyncDumpRestoreStorage(t *testing.T) {
-	storePath := "/tmp/db.json"
+func TestNewFileStorage(t *testing.T) {
+	storePath := "test_store.json"
+	defer removeFile(t, storePath)
 
-	t.Cleanup(func() {
-		err := os.Remove(storePath)
-		if err != nil {
-			t.Fatalf("expected no error on cleanup, got %v", err)
-		}
-	})
+	fs, err := NewFileStorage(storePath, 0, false)
+	checkNoError(t, err, "failed to create new FileStorage")
 
-	store := createStoreWithData(t, storePath, 300)
-	storedData := store.Snapshot()
-
-	err := store.Dump()
-	if err != nil {
-		t.Fatalf("expected no error on dump, got %v", err)
+	if fs == nil {
+		t.Fatalf("expected FileStorage instance, got nil")
 	}
-
-	store = NewFileStorage(storePath, 300)
-	err = store.Restore()
-	if err != nil {
-		t.Fatalf("expected no error on restore, got %v", err)
+	if fs.storePath != storePath {
+		t.Errorf("expected storePath=%s, got %s", storePath, fs.storePath)
 	}
-
-	restoredData := store.Snapshot()
-	require.Equal(t, storedData, restoredData)
+	if fs.storeInterval != 0 {
+		t.Errorf("expected storeInterval=0, got %d", fs.storeInterval)
+	}
+	if fs.restoreOnStart {
+		t.Errorf("expected restoreOnStart=false, got true")
+	}
 }
 
-func TestRestoreDoesntFailIfNoSourceFile(t *testing.T) {
-	store := NewFileStorage("xxx", 0)
+func TestSyncPushAndDump(t *testing.T) {
+	storePath := "test_store.json"
+	defer removeFile(t, storePath)
 
-	err := store.Restore()
+	fs, err := NewFileStorage(storePath, 0, false)
+	checkNoError(t, err, "failed to create new FileStorage")
+
+	record := Record{Name: "test", Value: metrics.Counter(42)}
+	err = fs.Push(record.CalculateRecordID(), record)
+	checkNoError(t, err, "failed to push record")
+
+	data, err := os.ReadFile(storePath)
+	checkNoError(t, err, "failed to read storage file")
+	fmt.Println(string(data))
+
+	err = json.Unmarshal(data, &fs.MemStorage)
+	checkNoError(t, err, "failed to unmarshal storage file")
+
+	if got, err := fs.Get(record.CalculateRecordID()); err != nil || got != record {
+		t.Errorf("expected record %v, got %v", record, got)
+	}
+}
+
+func TestRestore(t *testing.T) {
+	storePath := "test_store.json"
+	defer removeFile(t, storePath)
+
+	// create dump
+	fs1, err := NewFileStorage(storePath, 0, false)
+	checkNoError(t, err, "failed to create new FileStorage")
+
+	record := Record{Name: "test", Value: metrics.Counter(42)}
+	err = fs1.Push(record.CalculateRecordID(), record) // dumped
+	checkNoError(t, err, "failed to push to FileStorage")
+
+	// new storage from dump
+	fs2, err := NewFileStorage(storePath, 0, true)
+	checkNoError(t, err, "failed to create new FileStorage")
+
+	restoredRecord, err := fs2.Get(record.CalculateRecordID())
 	if err != nil {
-		t.Fatalf("expected no error on empty file, got %v", err)
+		checkNoError(t, err, "expected to find restored record, but did not")
+	}
+	if restoredRecord != record {
+		t.Errorf("expected restored record %v, got %v", record, restoredRecord)
+	}
+}
+
+func TestAsyncDumping(t *testing.T) {
+	storePath := "test_store.json"
+	defer removeFile(t, storePath)
+
+	fs, err := NewFileStorage(storePath, 1, false)
+	checkNoError(t, err, "failed to create new FileStorage")
+
+	record := Record{Name: "test", Value: metrics.Counter(42)}
+	err = fs.Push(record.CalculateRecordID(), record)
+	checkNoError(t, err, "failed to push record")
+
+	time.Sleep(1000 * time.Millisecond)
+
+	err = fs.Close()
+	checkNoError(t, err, "failed to close fs")
+
+	data, err := os.ReadFile(storePath)
+	checkNoError(t, err, "failed to read storage file")
+
+	ms := NewMemStorage()
+	err = json.Unmarshal(data, &ms)
+	checkNoError(t, err, "failed to unmarshal storage file")
+
+	if restored, err := ms.Get(record.CalculateRecordID()); err != nil || restored != record {
+		t.Errorf("expected record %v, got %v", record, restored)
 	}
 }

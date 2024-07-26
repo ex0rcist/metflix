@@ -31,6 +31,8 @@ func (m *StorageMock) List() ([]Record, error) {
 	return args.Get(0).([]Record), args.Error(1)
 }
 
-func (m *StorageMock) Kind() string {
-	return KindMock
+func (m *StorageMock) Close() error {
+	args := m.Called()
+
+	return args.Error(0)
 }

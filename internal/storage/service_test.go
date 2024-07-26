@@ -27,7 +27,7 @@ func TestService_Get(t *testing.T) {
 				m.On("Get", "test_counter").Return(Record{Name: "test", Value: metrics.Counter(42)}, nil)
 
 			},
-			args:     args{name: "test", kind: "counter"},
+			args:     args{name: "test", kind: metrics.KindCounter},
 			expected: Record{Name: "test", Value: metrics.Counter(42)},
 			wantErr:  false,
 		},
@@ -37,7 +37,7 @@ func TestService_Get(t *testing.T) {
 			mock: func(m *StorageMock) {
 				m.On("Get", "test_counter").Return(Record{}, entities.ErrRecordNotFound)
 			},
-			args:     args{name: "test", kind: "counter"},
+			args:     args{name: "test", kind: metrics.KindCounter},
 			expected: Record{},
 			wantErr:  true,
 		},

@@ -49,14 +49,14 @@ func (r *Record) UnmarshalJSON(src []byte) error {
 	r.Name = data["name"]
 
 	switch data["kind"] {
-	case "counter":
+	case metrics.KindCounter:
 		value, err := metrics.ToCounter(data["value"])
 		if err != nil {
 			return fmt.Errorf("record unmarshaling failed: %w", err)
 		}
 
 		r.Value = value
-	case "gauge":
+	case metrics.KindGauge:
 		value, err := metrics.ToGauge(data["value"])
 		if err != nil {
 			return fmt.Errorf("record unmarshaling failed: %w", err)

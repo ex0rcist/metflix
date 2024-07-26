@@ -68,7 +68,7 @@ func (s Service) List() ([]Record, error) {
 }
 
 func (s Service) calculateNewValue(record Record) (metrics.Metric, error) {
-	if record.Value.Kind() != "counter" {
+	if record.Value.Kind() != metrics.KindCounter {
 		return record.Value, nil
 	}
 

@@ -54,6 +54,6 @@ func (s *MemStorage) Snapshot() *MemStorage {
 	return &MemStorage{Data: snapshot}
 }
 
-func (s *MemStorage) Kind() string {
-	return KindMemory
+func (s *MemStorage) Close() error {
+	return nil // do nothing
 }

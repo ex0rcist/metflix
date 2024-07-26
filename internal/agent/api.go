@@ -40,16 +40,14 @@ func NewAPI(address *entities.Address, httpTransport http.RoundTripper) *API {
 func (c *API) Report(name string, metric metrics.Metric) *API {
 	url := "http://" + c.address.String() + "/update"
 
-	var requestID = utils.GenerateRequestID()
-	var ctx = setupLoggerCtx(requestID)
+	requestID := utils.GenerateRequestID()
+	ctx := setupLoggerCtx(requestID)
 	var mex metrics.MetricExchange
 
-	// HELP: можно ли тут вместо приведения типов
-	// использовать рефлексию через metric.(type) ?
 	switch metric.Kind() {
-	case "counter":
+	case metrics.KindCounter:
 		mex = metrics.NewUpdateCounterMex(name, metric.(metrics.Counter))
-	case "gauge":
+	case metrics.KindGauge:
 		mex = metrics.NewUpdateGaugeMex(name, metric.(metrics.Gauge))
 	default:
 		logging.LogError(entities.ErrMetricReport, "unknown metric")

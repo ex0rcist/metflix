@@ -3,6 +3,7 @@ package validators_test
 import (
 	"testing"
 
+	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/validators"
 )
 
@@ -16,12 +17,12 @@ func TestValidateMetric(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{name: "correct counter", args: args{name: "testname", kind: "counter"}, wantErr: false},
-		{name: "correct gauge", args: args{name: "testname", kind: "gauge"}, wantErr: false},
+		{name: "correct counter", args: args{name: "testname", kind: metrics.KindCounter}, wantErr: false},
+		{name: "correct gauge", args: args{name: "testname", kind: metrics.KindGauge}, wantErr: false},
 
-		{name: "name not present", args: args{name: "", kind: "counter"}, wantErr: true},
-		{name: "incorrect name", args: args{name: "некорректноеимя", kind: "counter"}, wantErr: true},
-		{name: "incorrect name", args: args{name: "incorrect name", kind: "gauge"}, wantErr: true},
+		{name: "name not present", args: args{name: "", kind: metrics.KindCounter}, wantErr: true},
+		{name: "incorrect name", args: args{name: "некорректноеимя", kind: metrics.KindCounter}, wantErr: true},
+		{name: "incorrect name", args: args{name: "incorrect name", kind: metrics.KindGauge}, wantErr: true},
 		{name: "incorrect name", args: args{name: "correctname", kind: "incorrectgauge"}, wantErr: true},
 		{name: "incorrect kind", args: args{kind: "gauger"}, wantErr: true},
 	}

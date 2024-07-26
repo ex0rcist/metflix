@@ -16,13 +16,13 @@ func toRecord(mex *metrics.MetricExchange) (storage.Record, error) {
 	}
 
 	switch mex.MType {
-	case "counter":
+	case metrics.KindCounter:
 		if mex.Delta == nil {
 			return record, entities.ErrMetricMissingValue
 		}
 
 		record = storage.Record{Name: mex.ID, Value: *mex.Delta}
-	case "gauge":
+	case metrics.KindGauge:
 		if mex.Value == nil {
 			return record, entities.ErrMetricMissingValue
 		}
@@ -39,11 +39,11 @@ func toMetricExchange(record storage.Record) (*metrics.MetricExchange, error) {
 	req := &metrics.MetricExchange{ID: record.Name, MType: record.Value.Kind()}
 
 	switch record.Value.Kind() {
-	case "counter":
+	case metrics.KindCounter:
 		delta, _ := record.Value.(metrics.Counter)
 		req.Delta = &delta
 
-	case "gauge":
+	case metrics.KindGauge:
 		value, _ := record.Value.(metrics.Gauge)
 		req.Value = &value
 	}
