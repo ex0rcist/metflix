@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -56,7 +55,6 @@ func TestSyncPushAndDump(t *testing.T) {
 
 	data, err := os.ReadFile(storePath)
 	checkNoError(t, err, "failed to read storage file")
-	fmt.Println(string(data))
 
 	err = json.Unmarshal(data, &fs.MemStorage)
 	checkNoError(t, err, "failed to unmarshal storage file")

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/logging"
@@ -16,7 +15,6 @@ var _ MetricsStorage = (*FileStorage)(nil)
 
 type FileStorage struct {
 	*MemStorage
-	sync.Mutex
 
 	storePath      string
 	storeInterval  int
@@ -60,7 +58,6 @@ func (s *FileStorage) Push(id string, record Record) error {
 
 func (s *FileStorage) Close() error {
 	if s.dumpTicker != nil {
-		fmt.Println("stopping ticker")
 		s.dumpTicker.Stop()
 	}
 
