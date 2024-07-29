@@ -9,5 +9,6 @@ import (
 
 func TestSetup(t *testing.T) {
 	require := require.New(t)
-	require.NotPanics(logging.Setup)
+
+	require.NotPanics(func() { logging.Setup() })
 }

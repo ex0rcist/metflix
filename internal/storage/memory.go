@@ -1,50 +1,59 @@
 package storage
 
 import (
-	"sort"
-
 	"github.com/ex0rcist/metflix/internal/entities"
 )
 
+// check that MemStorage implements MetricsStorage
+var _ MetricsStorage = (*MemStorage)(nil)
+
 type MemStorage struct {
-	Data map[RecordID]Record
+	Data map[string]Record `json:"records"`
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		Data: make(map[RecordID]Record),
+		Data: make(map[string]Record),
 	}
 }
 
-func (strg *MemStorage) Push(record Record) error {
-	recordID := CalculateRecordID(record.Name, record.Value.Kind())
-	strg.Data[recordID] = record
+func (s *MemStorage) Push(id string, record Record) error {
+	s.Data[id] = record
 
 	return nil
 }
 
-func (strg MemStorage) Get(recordID RecordID) (Record, error) {
-	record, ok := strg.Data[recordID]
+func (s *MemStorage) Get(id string) (Record, error) {
+	record, ok := s.Data[id]
 	if !ok {
-		return Record{}, entities.ErrMetricNotFound
+		return Record{}, entities.ErrRecordNotFound
 	}
 
 	return record, nil
 }
 
-func (strg MemStorage) GetAll() ([]Record, error) {
-	names := make([]string, 0, len(strg.Data))
+func (s *MemStorage) List() ([]Record, error) {
+	arr := make([]Record, len(s.Data))
 
-	for k := range strg.Data {
-		names = append(names, string(k))
-	}
-
-	arr := make([]Record, len(strg.Data))
-	sort.Strings(names)
-
-	for i, v := range names {
-		arr[i] = strg.Data[RecordID(v)]
+	i := 0
+	for _, record := range s.Data {
+		arr[i] = record
+		i++
 	}
 
 	return arr, nil
+}
+
+func (s *MemStorage) Snapshot() *MemStorage {
+	snapshot := make(map[string]Record, len(s.Data))
+
+	for k, v := range s.Data {
+		snapshot[k] = v
+	}
+
+	return &MemStorage{Data: snapshot}
+}
+
+func (s *MemStorage) Close() error {
+	return nil // do nothing
 }

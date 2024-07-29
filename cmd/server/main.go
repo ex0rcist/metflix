@@ -15,14 +15,6 @@ func main() {
 		logging.LogFatal(err)
 	}
 
-	err = srv.ParseFlags()
-	if err != nil {
-		logging.LogFatal(err)
-	}
-
-	logging.LogInfo(srv.Config.String())
-	logging.LogInfo("server ready") // TODO: must be after run?
-
 	err = srv.Run()
 	if err != nil {
 		logging.LogFatal(err)

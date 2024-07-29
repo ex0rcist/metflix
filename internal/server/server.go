@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
@@ -12,60 +14,152 @@ import (
 )
 
 type Server struct {
-	Config  *Config
-	Storage storage.Storage
-	Router  http.Handler
+	config     *Config
+	httpServer *http.Server
+	Storage    storage.MetricsStorage
+	Router     http.Handler
 }
 
 type Config struct {
-	Address entities.Address `env:"ADDRESS"`
+	Address        entities.Address `env:"ADDRESS"`
+	StoreInterval  int              `env:"STORE_INTERVAL"`
+	StorePath      string           `env:"FILE_STORAGE_PATH"`
+	RestoreOnStart bool             `env:"RESTORE"`
 }
 
 func New() (*Server, error) {
 	config := &Config{
-		Address: "0.0.0.0:8080",
+		Address:        "0.0.0.0:8080",
+		StoreInterval:  300,
+		RestoreOnStart: true,
 	}
 
-	storage := storage.NewMemStorage()
-	router := NewRouter(storage)
+	err := parseConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	storageKind := detectStorageKind(config)
+	dataStorage, err := newDataStorage(storageKind, config)
+	if err != nil {
+		return nil, err
+	}
+
+	storageService := storage.NewService(dataStorage)
+	router := NewRouter(storageService)
+
+	httpServer := &http.Server{
+		Addr:    config.Address.String(),
+		Handler: router,
+	}
 
 	return &Server{
-		Config:  config,
-		Storage: storage,
-		Router:  router,
+		config:     config,
+		httpServer: httpServer,
+		Storage:    dataStorage,
+		Router:     router,
 	}, nil
 }
 
-func (s *Server) ParseFlags() error {
-	address := s.Config.Address
+func (s *Server) Run() error {
+	logging.LogInfo(s.String())
+	logging.LogInfo("server ready")
 
-	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests") // HELP: "&"" because Set() has pointer receiver?
-	pflag.Parse()
+	return s.httpServer.ListenAndServe()
+}
 
-	// because VarP gets non-pointer value, set it manually
-	pflag.Visit(func(f *pflag.Flag) {
-		switch f.Name {
-		case "address":
-			s.Config.Address = address
-		}
-	})
+func (s *Server) String() string {
+	kind := detectStorageKind(s.config)
 
-	if err := env.Parse(s.Config); err != nil {
-		return logging.NewError(err)
+	str := []string{
+		fmt.Sprintf("address=%s", s.config.Address),
+		fmt.Sprintf("storage=%s", kind),
+	}
+
+	if kind == storage.KindFile {
+		str = append(str, fmt.Sprintf("store-interval=%d", s.config.StoreInterval))
+		str = append(str, fmt.Sprintf("store-path=%s", s.config.StorePath))
+		str = append(str, fmt.Sprintf("restore=%t", s.config.RestoreOnStart))
+	}
+
+	return "server config: " + strings.Join(str, "; ")
+}
+
+func parseConfig(config *Config) error {
+	err := parseFlags(config, os.Args[0], os.Args[1:])
+	if err != nil {
+		return err
+	}
+
+	err = parseEnv(config)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (s *Server) Run() error {
-	// HELP: почему тип, реализующий String() не приводится к строке автоматически?
-	err := http.ListenAndServe(s.Config.Address.String(), s.Router)
-	return err
+func parseFlags(config *Config, progname string, args []string) error {
+	flags := pflag.NewFlagSet(progname, pflag.ContinueOnError)
+
+	address := config.Address
+	flags.VarP(&address, "address", "a", "address:port for HTTP API requests")
+
+	// define flags
+	storeInterval := flags.IntP("store-interval", "i", config.StoreInterval, "interval (s) for dumping metrics to the disk, zero value means saving after each request")
+	storePath := flags.StringP("store-file", "f", config.StorePath, "path to file to store metrics")
+	restoreOnStart := flags.BoolP("restore", "r", config.RestoreOnStart, "whether to restore state on startup")
+
+	err := flags.Parse(args)
+	if err != nil {
+		return err
+	}
+
+	// fill values
+	flags.Visit(func(f *pflag.Flag) {
+		switch f.Name {
+		case "address":
+			config.Address = address
+		case "store-interval":
+			config.StoreInterval = *storeInterval
+		case "store-file":
+			config.StorePath = *storePath
+		case "restore":
+			config.RestoreOnStart = *restoreOnStart
+		}
+	})
+
+	return nil
 }
 
-func (c Config) String() string {
-	out := "server config: "
+func parseEnv(config *Config) error {
+	if err := env.Parse(config); err != nil {
+		return err
+	}
 
-	out += fmt.Sprintf("address=%s\t", c.Address)
-	return out
+	return nil
+}
+
+func detectStorageKind(c *Config) string {
+	var sk string
+
+	switch {
+	case c.StorePath != "":
+		sk = storage.KindFile
+	default:
+		sk = storage.KindMemory
+	}
+
+	return sk
+}
+
+func newDataStorage(kind string, config *Config) (storage.MetricsStorage, error) {
+	switch kind {
+	case storage.KindMemory:
+		return storage.NewMemStorage(), nil
+	case storage.KindFile:
+		return storage.NewFileStorage(config.StorePath, config.StoreInterval, config.RestoreOnStart)
+	default:
+		return nil, fmt.Errorf("unknown storage type")
+	}
 }

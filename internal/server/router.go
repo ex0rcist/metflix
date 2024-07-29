@@ -3,23 +3,36 @@ package server
 import (
 	"net/http"
 
+	chimdlw "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 
+	"github.com/ex0rcist/metflix/internal/middleware"
 	"github.com/ex0rcist/metflix/internal/storage"
 )
 
-func NewRouter(storage storage.Storage) http.Handler {
+func NewRouter(storageService storage.StorageService) http.Handler {
 	router := chi.NewRouter()
-	resource := Resource{storage: storage}
+
+	router.Use(chimdlw.RealIP)
+	router.Use(chimdlw.StripSlashes)
+
+	router.Use(middleware.RequestsLogger)
+	router.Use(middleware.DecompressRequest)
+	router.Use(middleware.CompressResponse)
 
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// no default body
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound) // no default body
 	}))
 
-	router.Get("/", resource.Homepage) // TODO: resource?
+	resource := NewMetricResource(storageService)
+
+	router.Get("/", resource.Homepage)
+
 	router.Post("/update/{metricKind}/{metricName}/{metricValue}", resource.UpdateMetric)
-	router.Get("/value/{metricKind}/{metricName}", resource.ShowMetric)
+	router.Post("/update", resource.UpdateMetricJSON)
+
+	router.Get("/value/{metricKind}/{metricName}", resource.GetMetric)
+	router.Post("/value", resource.GetMetricJSON)
 
 	return router
 }

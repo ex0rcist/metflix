@@ -4,19 +4,28 @@ import (
 	"regexp"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/metrics"
 )
 
 var nameRegexp = regexp.MustCompile(`^[A-Za-z\d]+$`)
 
-func EnsureNamePresent(name string) error {
-	if len(name) == 0 {
-		return entities.ErrMetricMissingName
+func ValidateMetric(name, kind string) error {
+	if err := validateMetricName(name); err != nil {
+		return err
+	}
+
+	if err := validateMetricKind(kind); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func ValidateName(name string) error {
+func validateMetricName(name string) error {
+	if len(name) == 0 {
+		return entities.ErrMetricMissingName
+	}
+
 	if !nameRegexp.MatchString(name) {
 		return entities.ErrMetricInvalidName
 	}
@@ -24,9 +33,9 @@ func ValidateName(name string) error {
 	return nil
 }
 
-func ValidateKind(kind string) error {
+func validateMetricKind(kind string) error {
 	switch kind {
-	case "counter", "gauge":
+	case metrics.KindCounter, metrics.KindGauge:
 		return nil
 
 	default:

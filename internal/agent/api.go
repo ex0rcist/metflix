@@ -1,14 +1,19 @@
 package agent
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/utils"
+	"github.com/rs/zerolog/log"
 )
 
 type API struct {
@@ -33,34 +38,84 @@ func NewAPI(address *entities.Address, httpTransport http.RoundTripper) *API {
 }
 
 func (c *API) Report(name string, metric metrics.Metric) *API {
-	// todo: another transport?
-	url := "http://" + c.address.String() + fmt.Sprintf("/update/%s/%s/%s", metric.Kind(), name, metric)
+	url := "http://" + c.address.String() + "/update"
 
-	req, err := http.NewRequest(http.MethodPost, url, http.NoBody)
-	if err != nil {
-		logging.LogError(err, "httpRequest error")
+	requestID := utils.GenerateRequestID()
+	ctx := setupLoggerCtx(requestID)
+	var mex metrics.MetricExchange
+
+	switch metric.Kind() {
+	case metrics.KindCounter:
+		mex = metrics.NewUpdateCounterMex(name, metric.(metrics.Counter))
+	case metrics.KindGauge:
+		mex = metrics.NewUpdateGaugeMex(name, metric.(metrics.Gauge))
+	default:
+		logging.LogError(entities.ErrMetricReport, "unknown metric")
+		return c
 	}
 
-	req.Header.Set("Content-Type", "text/plain")
+	body, err := json.Marshal(mex)
+	if err != nil {
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during marshaling", err.Error())
+		return c
+	}
 
-	logging.LogInfo(fmt.Sprintf("sending POST to %v", url))
+	payload, err := compression.Pack(body)
+	if err != nil {
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during compression", err.Error())
+		return c
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, payload)
+	if err != nil {
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "httpRequest error", err.Error())
+		return c
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("X-Request-Id", requestID)
+
+	logRequest(ctx, url, req.Header, body)
 
 	resp, err := c.httpClient.Do(req)
-
 	if err != nil {
-		logging.LogError(err, "httpClient error")
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error making http request", err.Error())
 		return c
 	}
 
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body) // нужно прочитать ответ для keepalive?
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logging.LogError(entities.ErrMetricReport, "error reading response body")
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reading response body", err.Error())
+		return c
 	}
 
+	logResponse(ctx, resp, respBody)
+
 	if resp.StatusCode != http.StatusOK {
-		logging.LogError(entities.ErrMetricReport, string(respBody))
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reporting stat", resp.Status, string(respBody))
 	}
 
 	return c
+}
+
+func setupLoggerCtx(requestID string) context.Context {
+	// empty context for now
+	ctx := context.Background()
+
+	// setup logger with rid attached
+	logger := log.Logger.With().Ctx(ctx).Str("rid", requestID).Logger()
+
+	// return context for logging
+	return logger.WithContext(ctx)
+}
+
+func logRequest(ctx context.Context, url string, headers http.Header, body []byte) {
+	logging.LogInfoCtx(ctx, "sending request to: "+url)
+	logging.LogDebugCtx(ctx, fmt.Sprintf("request: headers=%s; body=%s", utils.HeadersToStr(headers), string(body)))
+}
+
+func logResponse(ctx context.Context, resp *http.Response, respBody []byte) {
+	logging.LogDebugCtx(ctx, fmt.Sprintf("response: %v; headers=%s; body=%s", resp.Status, utils.HeadersToStr(resp.Header), respBody))
 }

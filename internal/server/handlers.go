@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
@@ -13,30 +15,32 @@ import (
 	"github.com/ex0rcist/metflix/internal/validators"
 )
 
-type Resource struct {
-	storage storage.Storage
+type MetricResource struct {
+	storageService storage.StorageService
 }
 
-func NewResource(s storage.Storage) Resource {
-	return Resource{
-		storage: s,
+func NewMetricResource(storageService storage.StorageService) MetricResource {
+	return MetricResource{
+		storageService: storageService,
 	}
 }
 
-func writeErrorResponse(w http.ResponseWriter, code int, err error) {
-	logging.LogError(err)
+func writeErrorResponse(ctx context.Context, w http.ResponseWriter, code int, err error) {
+	logging.LogErrorCtx(ctx, err)
 
 	w.WriteHeader(code) // only header for now
-
-	// resp := fmt.Sprintf("%d %v", code, err)
-	// http.Error(w, resp, code)
 }
 
-func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
+func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
 	body := fmt.Sprintln("mainpage here.")
 
-	// todo: errors
-	records, _ := r.storage.GetAll()
+	records, err := r.storageService.List()
+	if err != nil {
+		writeErrorResponse(ctx, rw, errToStatus(err), err)
+		return
+	}
 	if len(records) > 0 {
 		body += fmt.Sprintln("metrics list:")
 
@@ -45,115 +49,178 @@ func (r Resource) Homepage(res http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
-	_, err := res.Write([]byte(body))
+	rw.Header().Set("Content-Type", "text/html")
+
+	_, err = rw.Write([]byte(body))
 	if err != nil {
-		logging.LogError(err)
+		logging.LogErrorCtx(ctx, err)
 	}
 }
 
-func (r Resource) UpdateMetric(res http.ResponseWriter, req *http.Request) {
-	metricName := req.PathValue("metricName")
-	metricKind := req.PathValue("metricKind")
-	metricValue := req.PathValue("metricValue")
+func (r MetricResource) UpdateMetric(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
 
-	if err := validators.EnsureNamePresent(metricName); err != nil {
-		writeErrorResponse(res, http.StatusNotFound, err)
-		return
+	mex := metrics.MetricExchange{
+		ID:    req.PathValue("metricName"),
+		MType: req.PathValue("metricKind"),
 	}
 
-	if err := validators.ValidateName(metricName); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
-		return
-	}
+	rawValue := req.PathValue("metricValue")
 
-	if err := validators.ValidateKind(metricKind); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
-		return
-	}
-
-	var rec storage.Record
-
-	switch metricKind {
-	case "counter":
-		var currentValue int64
-
-		recordID := storage.CalculateRecordID(metricName, metricKind)
-		current, err := r.storage.Get(recordID)
-
-		if err != nil && errors.Is(err, entities.ErrMetricNotFound) {
-			currentValue = 0
-		} else if err != nil {
-			writeErrorResponse(res, http.StatusInternalServerError, err)
-			return
-		} else {
-			currentValue = int64(current.Value.(metrics.Counter))
-		}
-
-		incr, err := strconv.ParseInt(metricValue, 10, 64)
+	switch mex.MType {
+	case metrics.KindCounter:
+		delta, err := metrics.ToCounter(rawValue)
 		if err != nil {
-			writeErrorResponse(res, http.StatusBadRequest, err)
+			writeErrorResponse(ctx, rw, errToStatus(err), err)
 			return
 		}
-		currentValue += incr
 
-		rec = storage.Record{Name: metricName, Value: metrics.Counter(currentValue)}
-	case "gauge":
-		current, err := strconv.ParseFloat(metricValue, 64)
+		mex.Delta = &delta
+	case metrics.KindGauge:
+		value, err := metrics.ToGauge(rawValue)
 		if err != nil {
-			writeErrorResponse(res, http.StatusBadRequest, err)
+			writeErrorResponse(ctx, rw, errToStatus(err), err)
 			return
 		}
 
-		rec = storage.Record{Name: metricName, Value: metrics.Gauge(current)}
-	default:
-		writeErrorResponse(res, http.StatusBadRequest, entities.ErrMetricUnknown)
-		return
+		mex.Value = &value
 	}
 
-	err := r.storage.Push(rec)
+	record, err := toRecord(&mex)
 	if err != nil {
-		writeErrorResponse(res, http.StatusInternalServerError, err)
+		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
 	}
 
-	res.WriteHeader(http.StatusOK)
+	newRecord, err := r.storageService.Push(record)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+
+	if _, err = io.WriteString(rw, newRecord.Value.String()); err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
 }
 
-func (r Resource) ShowMetric(res http.ResponseWriter, req *http.Request) {
+func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	mex := new(metrics.MetricExchange)
+	if err := json.NewDecoder(req.Body).Decode(mex); err != nil {
+		if err == io.EOF {
+			err = errors.New("no json provided")
+		}
+
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
+		return
+	}
+
+	record, err := toRecord(mex)
+	if err != nil {
+		writeErrorResponse(ctx, rw, errToStatus(err), err)
+		return
+	}
+
+	newRecord, err := r.storageService.Push(record)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	mex, err = toMetricExchange(newRecord)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(rw).Encode(mex); err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+}
+
+func (r MetricResource) GetMetric(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
 	metricName := req.PathValue("metricName")
 	metricKind := req.PathValue("metricKind")
 
-	if err := validators.EnsureNamePresent(metricName); err != nil {
-		writeErrorResponse(res, http.StatusNotFound, err)
-		return
-	}
-
-	if err := validators.ValidateName(metricName); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
-		return
-	}
-
-	if err := validators.ValidateKind(metricKind); err != nil {
-		writeErrorResponse(res, http.StatusBadRequest, err)
+	if err := validators.ValidateMetric(metricName, metricKind); err != nil {
+		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
 	}
 
 	var record storage.Record
-
-	recordID := storage.CalculateRecordID(metricName, metricKind)
-	record, err := r.storage.Get(recordID)
+	record, err := r.storageService.Get(metricName, metricKind)
 	if err != nil {
-		writeErrorResponse(res, http.StatusNotFound, err)
+		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
 	}
 
 	body := record.Value.String()
 
-	res.WriteHeader(http.StatusOK)
+	rw.WriteHeader(http.StatusOK)
 
-	_, err = res.Write([]byte(body))
+	_, err = rw.Write([]byte(body))
 	if err != nil {
-		writeErrorResponse(res, http.StatusInternalServerError, err)
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
+	}
+}
+
+func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	mex := new(metrics.MetricExchange)
+	if err := json.NewDecoder(req.Body).Decode(mex); err != nil {
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := validators.ValidateMetric(mex.ID, mex.MType); err != nil {
+		writeErrorResponse(ctx, rw, errToStatus(err), err)
+		return
+	}
+
+	record, err := r.storageService.Get(mex.ID, mex.MType)
+	if err != nil {
+		writeErrorResponse(ctx, rw, errToStatus(err), err)
+		return
+	}
+
+	mex, err = toMetricExchange(record)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(rw).Encode(mex); err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+}
+
+func errToStatus(err error) int {
+	switch err {
+	case entities.ErrRecordNotFound, entities.ErrMetricMissingName:
+		return http.StatusNotFound
+	case
+		entities.ErrMetricUnknown, entities.ErrMetricInvalidValue,
+		entities.ErrMetricInvalidName, entities.ErrMetricLongName,
+		entities.ErrMetricMissingValue:
+
+		return http.StatusBadRequest
+	case entities.ErrUnexpected:
+		return http.StatusInternalServerError
+	default:
+		return http.StatusInternalServerError
 	}
 }

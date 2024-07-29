@@ -1,26 +1,24 @@
-package metrics_test
+package metrics
 
 import (
 	"testing"
-
-	"github.com/ex0rcist/metflix/internal/metrics"
 )
 
 func TestKind(t *testing.T) {
 	tests := []struct {
 		name   string
-		metric metrics.Metric
+		metric Metric
 		want   string
 	}{
 		{
 			name:   "kind = counter",
-			metric: metrics.Counter(1),
-			want:   "counter",
+			metric: Counter(1),
+			want:   KindCounter,
 		},
 		{
 			name:   "kind = gauge",
-			metric: metrics.Gauge(1.01),
-			want:   "gauge",
+			metric: Gauge(1.01),
+			want:   KindGauge,
 		},
 	}
 	for _, tt := range tests {
@@ -35,22 +33,22 @@ func TestKind(t *testing.T) {
 func TestString(t *testing.T) {
 	tests := []struct {
 		name   string
-		metric metrics.Metric
+		metric Metric
 		want   string
 	}{
 		{
 			name:   "String() for counter",
-			metric: metrics.Counter(42),
+			metric: Counter(42),
 			want:   "42",
 		},
 		{
 			name:   "String() for gauge",
-			metric: metrics.Gauge(42.01),
+			metric: Gauge(42.01),
 			want:   "42.01",
 		},
 		{
 			name:   "String() for small gauge",
-			metric: metrics.Gauge(0.42),
+			metric: Gauge(0.42),
 			want:   "0.42",
 		},
 	}

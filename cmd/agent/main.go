@@ -20,9 +20,5 @@ func main() {
 		logging.LogFatal(err)
 	}
 
-	logging.LogInfo(agnt.Config.String())
-
 	agnt.Run()
-
-	logging.LogInfo("agent ready")
 }

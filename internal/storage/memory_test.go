@@ -1,103 +1,129 @@
-package storage_test
+package storage
 
 import (
 	"testing"
 
 	"github.com/ex0rcist/metflix/internal/metrics"
-	"github.com/ex0rcist/metflix/internal/storage"
-
 	"github.com/stretchr/testify/require"
 )
 
-func TestPushCounter(t *testing.T) {
-	require := require.New(t)
+func TestMemStorage_Push(t *testing.T) {
+	strg := NewMemStorage()
 
-	strg := storage.NewMemStorage()
-	name := "test"
+	records := []Record{
+		{Name: metrics.KindCounter, Value: metrics.Counter(42)},
+		{Name: metrics.KindGauge, Value: metrics.Gauge(42.42)},
+	}
 
-	value := metrics.Counter(42)
-	record := storage.Record{Name: name, Value: value}
-	err := strg.Push(record)
+	for _, r := range records {
+		id := r.CalculateRecordID()
 
-	require.NoError(err)
-	require.Equal(value, strg.Data[record.CalculateRecordID()].Value)
+		err := strg.Push(id, r)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		if s, _ := strg.Get(id); r != s {
+			t.Fatalf("expected record %v, got %v", r, s)
+		}
+	}
 }
 
-func TestPushGauge(t *testing.T) {
-	require := require.New(t)
-
-	strg := storage.NewMemStorage()
-	name := "test"
-
-	value := metrics.Gauge(42.42)
-	record := storage.Record{Name: name, Value: value}
-	err := strg.Push(record)
-
-	require.NoError(err)
-	require.Equal(value, strg.Data[record.CalculateRecordID()].Value)
-}
-
-func TestPushWithSameName(t *testing.T) {
-	require := require.New(t)
-
-	strg := storage.NewMemStorage()
+func TestMemStorage_Push_WithSameName(t *testing.T) {
+	strg := NewMemStorage()
 
 	counterValue := metrics.Counter(42)
 	gaugeValue := metrics.Gauge(42.42)
 
-	record1 := storage.Record{Name: "test", Value: counterValue}
-	err1 := strg.Push(record1)
-	require.NoError(err1)
-
-	record2 := storage.Record{Name: "test", Value: gaugeValue}
-	err2 := strg.Push(record2)
-	require.NoError(err2)
-
-	require.Equal(counterValue, strg.Data[record1.CalculateRecordID()].Value)
-	require.Equal(gaugeValue, strg.Data[record2.CalculateRecordID()].Value)
-}
-
-func TestGet(t *testing.T) {
-	require := require.New(t)
-
-	strg := storage.NewMemStorage()
-
-	value := metrics.Counter(6)
-	record := storage.Record{Name: "test", Value: value}
-	err := strg.Push(record)
-	require.NoError(err)
-
-	gotRecord, err := strg.Get(record.CalculateRecordID())
-	require.NoError(err)
-	require.Equal(value, gotRecord.Value)
-}
-
-func TestGetNonExistantKey(t *testing.T) {
-	require := require.New(t)
-
-	strg := storage.NewMemStorage()
-
-	_, err := strg.Get("none")
-	require.Error(err)
-}
-
-func TestGetAll(t *testing.T) {
-	require := require.New(t)
-
-	strg := storage.NewMemStorage()
-
-	records := []storage.Record{
-		{Name: "test1", Value: metrics.Counter(1)},
-		{Name: "test2", Value: metrics.Counter(2)},
-		{Name: "test3", Value: metrics.Gauge(3.4)},
+	records := []Record{
+		{Name: "test", Value: counterValue},
+		{Name: "test", Value: gaugeValue},
 	}
 
 	for _, r := range records {
-		err := strg.Push(r)
-		require.NoError(err)
+		id := r.CalculateRecordID()
+
+		if err := strg.Push(id, r); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
 	}
 
-	allRecords, err := strg.GetAll()
-	require.NoError(err)
-	require.ElementsMatch(records, allRecords)
+	storedCounter, err := strg.Get(records[0].CalculateRecordID())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	storedGauge, err := strg.Get(records[1].CalculateRecordID())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if storedCounter != records[0] {
+		t.Fatalf("expected stored %v, got %v", records[0], storedCounter)
+	}
+
+	if storedGauge != records[1] {
+		t.Fatalf("expected stored %v, got %v", records[1], storedGauge)
+	}
+}
+
+func TestMemStorage_Get(t *testing.T) {
+	strg := NewMemStorage()
+	record := Record{Name: "1", Value: metrics.Counter(42)}
+	err := strg.Push(record.CalculateRecordID(), record)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		id        string
+		want      Record
+		wantError bool
+	}{
+		{name: "existing record", id: record.CalculateRecordID(), want: record, wantError: false},
+		{name: "non-existing record", id: "test", want: Record{}, wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := strg.Get(tt.id)
+			if (err != nil) != tt.wantError {
+				t.Fatalf("expected error: %v, got %v", tt.wantError, err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected record %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestMemStorage_List(t *testing.T) {
+	storage := NewMemStorage()
+
+	records := []Record{
+		{Name: metrics.KindGauge, Value: metrics.Gauge(42.42)},
+		{Name: metrics.KindCounter, Value: metrics.Counter(42)},
+	}
+
+	err := storage.Push(records[0].CalculateRecordID(), records[0])
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	err = storage.Push(records[1].CalculateRecordID(), records[1])
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	got, err := storage.List()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(got) != len(records) {
+		t.Fatalf("expected %d records, got %d", len(records), len(got))
+	}
+
+	require.ElementsMatch(t, records, got)
 }

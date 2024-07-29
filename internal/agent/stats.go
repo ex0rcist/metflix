@@ -22,7 +22,7 @@ func NewStats() *Stats {
 }
 
 func (m *Stats) Poll() error {
-	logging.LogInfo("polling stats ... ")
+	logging.LogDebug("polling stats ... ")
 
 	m.PollCount++
 	m.RandomValue = metrics.Gauge(m.generator.Float64())
