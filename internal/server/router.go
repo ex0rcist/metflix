@@ -10,7 +10,10 @@ import (
 	"github.com/ex0rcist/metflix/internal/storage"
 )
 
-func NewRouter(storageService storage.StorageService) http.Handler {
+func NewRouter(
+	storageService storage.StorageService,
+	pingerService storage.Pinger,
+) http.Handler {
 	router := chi.NewRouter()
 
 	router.Use(chimdlw.RealIP)
@@ -24,6 +27,13 @@ func NewRouter(storageService storage.StorageService) http.Handler {
 		w.WriteHeader(http.StatusNotFound) // no default body
 	}))
 
+	registerMetricsEndpoints(storageService, router)
+	registerPingerEndpoint(pingerService, router)
+
+	return router
+}
+
+func registerMetricsEndpoints(storageService storage.StorageService, router *chi.Mux) {
 	resource := NewMetricResource(storageService)
 
 	router.Get("/", resource.Homepage)
@@ -33,6 +43,10 @@ func NewRouter(storageService storage.StorageService) http.Handler {
 
 	router.Get("/value/{metricKind}/{metricName}", resource.GetMetric)
 	router.Post("/value", resource.GetMetricJSON)
+}
 
-	return router
+func registerPingerEndpoint(pingerService storage.Pinger, router *chi.Mux) {
+	resource := NewPingerResource(pingerService)
+
+	router.Get("/ping", resource.Ping)
 }

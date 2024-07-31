@@ -36,7 +36,7 @@ func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
 
 	body := fmt.Sprintln("mainpage here.")
 
-	records, err := r.storageService.List()
+	records, err := r.storageService.List(ctx)
 	if err != nil {
 		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
@@ -92,7 +92,7 @@ func (r MetricResource) UpdateMetric(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	newRecord, err := r.storageService.Push(record)
+	newRecord, err := r.storageService.Push(ctx, record)
 	if err != nil {
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
@@ -125,7 +125,7 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	newRecord, err := r.storageService.Push(record)
+	newRecord, err := r.storageService.Push(ctx, record)
 	if err != nil {
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
@@ -157,7 +157,7 @@ func (r MetricResource) GetMetric(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	var record storage.Record
-	record, err := r.storageService.Get(metricName, metricKind)
+	record, err := r.storageService.Get(ctx, metricName, metricKind)
 	if err != nil {
 		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
@@ -188,7 +188,7 @@ func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	record, err := r.storageService.Get(mex.ID, mex.MType)
+	record, err := r.storageService.Get(ctx, mex.ID, mex.MType)
 	if err != nil {
 		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
@@ -206,6 +206,32 @@ func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request)
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
 	}
+}
+
+type PingerResource struct {
+	pinger storage.Pinger
+}
+
+func NewPingerResource(pinger storage.Pinger) PingerResource {
+	return PingerResource{
+		pinger: pinger,
+	}
+}
+
+func (pr PingerResource) Ping(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	err := pr.pinger.Ping(ctx)
+	if err == nil {
+		return
+	}
+
+	if errors.Is(err, entities.ErrStorageUnpingable) {
+		writeErrorResponse(ctx, w, http.StatusNotImplemented, err)
+		return
+	}
+
+	writeErrorResponse(ctx, w, http.StatusInternalServerError, err)
 }
 
 func errToStatus(err error) int {

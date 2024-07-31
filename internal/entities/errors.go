@@ -14,8 +14,9 @@ var (
 	ErrMetricMissingValue = errors.New("metric value is missing")
 	ErrMetricInvalidValue = errors.New("metric value is invalid")
 
-	ErrStoragePush  = errors.New("failed to push record")
-	ErrStorageFetch = errors.New("failed to get record")
+	ErrStoragePush       = errors.New("failed to push record")
+	ErrStorageFetch      = errors.New("failed to get record")
+	ErrStorageUnpingable = errors.New("healthcheck is not supported")
 
 	ErrEncodingInternal    = errors.New("internal encoding error")
 	ErrEncodingUnsupported = errors.New("requsted encoding is not supported")

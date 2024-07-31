@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -44,8 +45,8 @@ func NewFileStorage(storePath string, storeInterval int, restoreOnStart bool) (*
 	return fs, nil
 }
 
-func (s *FileStorage) Push(id string, record Record) error {
-	if err := s.MemStorage.Push(id, record); err != nil {
+func (s *FileStorage) Push(ctx context.Context, id string, record Record) error {
+	if err := s.MemStorage.Push(ctx, id, record); err != nil {
 		return err
 	}
 
@@ -56,7 +57,7 @@ func (s *FileStorage) Push(id string, record Record) error {
 	return nil
 }
 
-func (s *FileStorage) Close() error {
+func (s *FileStorage) Close(_ context.Context) error {
 	if s.dumpTicker != nil {
 		s.dumpTicker.Stop()
 	}

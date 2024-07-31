@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"context"
+
 	"github.com/ex0rcist/metflix/internal/entities"
 )
 
@@ -17,13 +19,13 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
-func (s *MemStorage) Push(id string, record Record) error {
+func (s *MemStorage) Push(_ context.Context, id string, record Record) error {
 	s.Data[id] = record
 
 	return nil
 }
 
-func (s *MemStorage) Get(id string) (Record, error) {
+func (s *MemStorage) Get(_ context.Context, id string) (Record, error) {
 	record, ok := s.Data[id]
 	if !ok {
 		return Record{}, entities.ErrRecordNotFound
@@ -32,7 +34,7 @@ func (s *MemStorage) Get(id string) (Record, error) {
 	return record, nil
 }
 
-func (s *MemStorage) List() ([]Record, error) {
+func (s *MemStorage) List(_ context.Context) ([]Record, error) {
 	arr := make([]Record, len(s.Data))
 
 	i := 0
@@ -54,6 +56,6 @@ func (s *MemStorage) Snapshot() *MemStorage {
 	return &MemStorage{Data: snapshot}
 }
 
-func (s *MemStorage) Close() error {
+func (s *MemStorage) Close(_ context.Context) error {
 	return nil // do nothing
 }

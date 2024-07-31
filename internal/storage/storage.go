@@ -1,15 +1,17 @@
 package storage
 
+import "context"
+
 const (
-	KindMemory = "memory"
-	KindFile   = "file"
-	KindMock   = "mock"
+	KindMemory   = "memory"
+	KindFile     = "file"
+	KindDatabase = "database"
 )
 
 // common interface for storages: mem, file, etc
 type MetricsStorage interface {
-	Push(id string, record Record) error
-	Get(id string) (Record, error)
-	List() ([]Record, error)
-	Close() error
+	Push(ctx context.Context, id string, record Record) error
+	Get(ctx context.Context, id string) (Record, error)
+	List(ctx context.Context) ([]Record, error)
+	Close(ctx context.Context) error
 }

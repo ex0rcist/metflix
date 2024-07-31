@@ -38,6 +38,15 @@ func testRequest(t *testing.T, router http.Handler, method, path string, payload
 	return resp.StatusCode, contentType, respBody
 }
 
+func createTestRouter() (http.Handler, *storage.ServiceMock, *storage.PingerMock) {
+	sm := &storage.ServiceMock{}
+	pm := &storage.PingerMock{}
+
+	router := NewRouter(sm, pm)
+
+	return router, sm, pm
+}
+
 func TestHomepage(t *testing.T) {
 	type result struct {
 		code     int
@@ -69,10 +78,8 @@ func TestHomepage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		m := storage.ServiceMock{}
-		m.On("List").Return(tt.metrics, nil)
-
-		router := NewRouter(&m)
+		router, sm, _ := createTestRouter()
+		sm.On("List").Return(tt.metrics, nil)
 
 		t.Run(tt.name, func(t *testing.T) {
 			code, _, body := testRequest(t, router, http.MethodGet, tt.path, nil)
@@ -164,13 +171,11 @@ func TestUpdateMetric(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		m := new(storage.ServiceMock)
+		router, sm, _ := createTestRouter()
 
 		if tt.mock != nil {
-			tt.mock(m)
+			tt.mock(sm)
 		}
-
-		router := NewRouter(m)
 
 		t.Run(tt.name, func(t *testing.T) {
 			code, _, body := testRequest(t, router, http.MethodPost, tt.path, nil)
@@ -239,13 +244,11 @@ func TestUpdateJSONMetric(t *testing.T) {
 			assert := assert.New(t)
 			require := require.New(t)
 
-			m := storage.ServiceMock{}
+			router, sm, _ := createTestRouter()
 
 			if tt.mock != nil {
-				tt.mock(&m)
+				tt.mock(sm)
 			}
-
-			router := NewRouter(&m)
 
 			payload, err := json.Marshal(tt.mex)
 			require.NoError(err)
@@ -319,11 +322,10 @@ func TestGetMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := storage.ServiceMock{}
-			router := NewRouter(&m)
+			router, sm, _ := createTestRouter()
 
 			if tt.mock != nil {
-				tt.mock(&m)
+				tt.mock(sm)
 			}
 
 			code, _, body := testRequest(t, router, http.MethodGet, tt.path, nil)
@@ -426,13 +428,11 @@ func TestGetMetricJSON(t *testing.T) {
 			assert := assert.New(t)
 			require := require.New(t)
 
-			m := storage.ServiceMock{}
+			router, sm, _ := createTestRouter()
 
 			if tt.mock != nil {
-				tt.mock(&m)
+				tt.mock(sm)
 			}
-
-			router := NewRouter(&m)
 
 			payload, err := json.Marshal(tt.mex)
 			require.NoError(err)
@@ -448,6 +448,53 @@ func TestGetMetricJSON(t *testing.T) {
 				require.NoError(err)
 
 				assert.Equal(tt.expected.body, resp)
+			}
+		})
+	}
+}
+
+func TestPing(t *testing.T) {
+	type result struct {
+		code int
+	}
+
+	tests := []struct {
+		name         string
+		pingResponse error
+		expected     result
+	}{
+		{
+			name:         "should return ok if storage is ok",
+			pingResponse: nil,
+			expected: result{
+				code: http.StatusOK,
+			},
+		},
+		{
+			name:         "should return not implemented if storage doesn't support ping",
+			pingResponse: entities.ErrStorageUnpingable,
+			expected: result{
+				code: http.StatusNotImplemented,
+			},
+		},
+		{
+			name:         "should return internal server error if storage offline",
+			pingResponse: entities.ErrUnexpected,
+			expected: result{
+				code: http.StatusInternalServerError,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router, _, pm := createTestRouter()
+			pm.On("Ping", mock.Anything).Return(tt.pingResponse)
+
+			code, _, _ := testRequest(t, router, http.MethodGet, "/ping", nil)
+
+			if tt.expected.code != code {
+				t.Fatalf("expected response to be %d, got: %d", tt.expected.code, code)
 			}
 		})
 	}

@@ -25,6 +25,7 @@ type Config struct {
 	StoreInterval  int              `env:"STORE_INTERVAL"`
 	StorePath      string           `env:"FILE_STORAGE_PATH"`
 	RestoreOnStart bool             `env:"RESTORE"`
+	DatabaseDSN    string           `env:"DATABASE_DSN"`
 }
 
 func New() (*Server, error) {
@@ -46,7 +47,8 @@ func New() (*Server, error) {
 	}
 
 	storageService := storage.NewService(dataStorage)
-	router := NewRouter(storageService)
+	pingerService := storage.NewPingerService(dataStorage)
+	router := NewRouter(storageService, pingerService)
 
 	httpServer := &http.Server{
 		Addr:    config.Address.String(),
@@ -82,6 +84,10 @@ func (s *Server) String() string {
 		str = append(str, fmt.Sprintf("restore=%t", s.config.RestoreOnStart))
 	}
 
+	if kind == storage.KindDatabase {
+		str = append(str, fmt.Sprintf("database=%s", s.config.DatabaseDSN))
+	}
+
 	return "server config: " + strings.Join(str, "; ")
 }
 
@@ -109,6 +115,7 @@ func parseFlags(config *Config, progname string, args []string) error {
 	storeInterval := flags.IntP("store-interval", "i", config.StoreInterval, "interval (s) for dumping metrics to the disk, zero value means saving after each request")
 	storePath := flags.StringP("store-file", "f", config.StorePath, "path to file to store metrics")
 	restoreOnStart := flags.BoolP("restore", "r", config.RestoreOnStart, "whether to restore state on startup")
+	databaseDSN := flags.StringP("database", "d", config.DatabaseDSN, "PostgreSQL database DSN")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -126,6 +133,8 @@ func parseFlags(config *Config, progname string, args []string) error {
 			config.StorePath = *storePath
 		case "restore":
 			config.RestoreOnStart = *restoreOnStart
+		case "database":
+			config.DatabaseDSN = *databaseDSN
 		}
 	})
 
@@ -144,6 +153,8 @@ func detectStorageKind(c *Config) string {
 	var sk string
 
 	switch {
+	case c.DatabaseDSN != "":
+		sk = storage.KindDatabase
 	case c.StorePath != "":
 		sk = storage.KindFile
 	default:
@@ -159,6 +170,8 @@ func newDataStorage(kind string, config *Config) (storage.MetricsStorage, error)
 		return storage.NewMemStorage(), nil
 	case storage.KindFile:
 		return storage.NewFileStorage(config.StorePath, config.StoreInterval, config.RestoreOnStart)
+	case storage.KindDatabase:
+		return storage.NewDatabaseStorage(config.DatabaseDSN)
 	default:
 		return nil, fmt.Errorf("unknown storage type")
 	}
