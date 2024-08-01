@@ -11,7 +11,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-type Migrator struct {
+type DatabaseMigrator struct {
 	dsn     string
 	retries int
 	source  string
@@ -20,11 +20,11 @@ type Migrator struct {
 	err      error
 }
 
-func NewMigrator(dsn string, source string, retries int) Migrator {
-	return Migrator{dsn: dsn, source: source, retries: retries}
+func NewDatabaseMigrator(dsn string, source string, retries int) DatabaseMigrator {
+	return DatabaseMigrator{dsn: dsn, source: source, retries: retries}
 }
 
-func (m Migrator) Run() error {
+func (m DatabaseMigrator) Run() error {
 	for m.retries > 0 {
 		logging.LogInfo("migrations: connecting to " + m.dsn)
 

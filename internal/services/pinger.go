@@ -1,4 +1,4 @@
-package storage
+package services
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/storage"
 )
 
 var _ Pinger = PingerService{}
@@ -15,10 +16,10 @@ type Pinger interface {
 }
 
 type PingerService struct {
-	storage MetricsStorage
+	storage storage.MetricsStorage
 }
 
-func NewPingerService(storage MetricsStorage) PingerService {
+func NewPingerService(storage storage.MetricsStorage) PingerService {
 	return PingerService{storage: storage}
 }
 

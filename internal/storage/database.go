@@ -6,29 +6,20 @@ import (
 	"fmt"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var _ MetricsStorage = DatabaseStorage{}
 
-// implements pgxpool.Pool
-type PGXPool interface {
-	Ping(ctx context.Context) error
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	Close()
-}
-
 type DatabaseStorage struct {
-	pool PGXPool
+	Pool PGXPool
 }
 
 func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
-	migrator := NewMigrator(dsn, "file://db/migrate", 5)
+	migrator := NewDatabaseMigrator(dsn, "file://db/migrate", 5)
 
 	if err := migrator.Run(); err != nil {
 		return nil, fmt.Errorf("migrations run failed: %w", err)
@@ -39,15 +30,38 @@ func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
 		return nil, fmt.Errorf("pgxpool init failed: %w", err)
 	}
 
-	return &DatabaseStorage{pool: pool}, nil
+	return &DatabaseStorage{Pool: pool}, nil
 }
 
 func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) error {
 	sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
-	_, err := d.pool.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String())
+	_, err := d.Pool.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String())
 
 	if err != nil {
 		return fmt.Errorf("db storage Push() error: %w", err)
+	}
+
+	return nil
+}
+
+func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) error {
+	batch := new(pgx.Batch)
+	sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
+	for id, record := range data {
+		batch.Queue(sql, id, record.Name, record.Value.Kind(), record.Value.String())
+	}
+
+	batchResp := d.Pool.SendBatch(ctx, batch)
+	defer func() {
+		if err := batchResp.Close(); err != nil {
+			logging.LogErrorCtx(ctx, err, "failed to close batchResp")
+		}
+	}()
+
+	for i := 0; i < len(data); i++ {
+		if _, err := batchResp.Exec(); err != nil {
+			return fmt.Errorf("DatabaseStorage - PushBatch - batchResp.Exec: %w", err)
+		}
 	}
 
 	return nil
@@ -63,7 +77,7 @@ func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) {
 	)
 
 	sql := "SELECT name, kind, value FROM metrics WHERE id=$1"
-	err = d.pool.QueryRow(ctx, sql, key).Scan(&name, &kind, &value)
+	err = d.Pool.QueryRow(ctx, sql, key).Scan(&name, &kind, &value)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -86,7 +100,7 @@ func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) {
 }
 
 func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) {
-	rows, err := d.pool.Query(ctx, "SELECT name, kind, value FROM metrics")
+	rows, err := d.Pool.Query(ctx, "SELECT name, kind, value FROM metrics")
 	if err != nil {
 		return nil, fmt.Errorf("db storage List() error: %w", err)
 	}
@@ -123,7 +137,7 @@ func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) {
 }
 
 func (d DatabaseStorage) Ping(ctx context.Context) error {
-	if err := d.pool.Ping(ctx); err != nil {
+	if err := d.Pool.Ping(ctx); err != nil {
 		return fmt.Errorf("db storage Ping() error: %w", err)
 	}
 
@@ -131,6 +145,6 @@ func (d DatabaseStorage) Ping(ctx context.Context) error {
 }
 
 func (d DatabaseStorage) Close(ctx context.Context) error {
-	d.pool.Close()
+	d.Pool.Close()
 	return nil
 }

@@ -19,8 +19,13 @@ func NewPGXPoolMock() *PGXPoolMock {
 }
 
 func (m *PGXPoolMock) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
-	mArgs := m.Called(ctx)
+	mArgs := m.Called(ctx, sql, args)
 	return mArgs.Get(0).(pgconn.CommandTag), mArgs.Error(1)
+}
+
+func (m *PGXPoolMock) SendBatch(ctx context.Context, b *pgx.Batch) (br pgx.BatchResults) {
+	mArgs := m.Called(ctx, b)
+	return mArgs.Get(0).(pgx.BatchResults)
 }
 
 func (m *PGXPoolMock) Ping(ctx context.Context) error {

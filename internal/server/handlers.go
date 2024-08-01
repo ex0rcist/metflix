@@ -11,6 +11,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/ex0rcist/metflix/internal/validators"
 )
@@ -145,6 +146,39 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 	}
 }
 
+func (r MetricResource) BatchUpdateMetricsJSON(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	records, err := parseJSONMetricsList(req)
+	if err != nil {
+		if err == io.EOF {
+			err = errors.New("no json provided")
+		}
+
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
+		return
+	}
+
+	recorded, err := r.storageService.PushList(ctx, records)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	resp, err := toMetricExchangeList(recorded)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(rw).Encode(resp); err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+}
+
 func (r MetricResource) GetMetric(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -208,11 +242,35 @@ func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request)
 	}
 }
 
-type PingerResource struct {
-	pinger storage.Pinger
+func parseJSONMetricsList(r *http.Request) ([]storage.Record, error) {
+	req := make([]metrics.MetricExchange, 0)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, err
+	}
+
+	records := make([]storage.Record, len(req))
+
+	for i := range req {
+		record, err := toRecord(&req[i])
+		if err != nil {
+			return nil, err
+		}
+
+		records[i] = record
+	}
+
+	if len(records) == 0 {
+		return nil, fmt.Errorf("no metrics provided")
+	}
+
+	return records, nil
 }
 
-func NewPingerResource(pinger storage.Pinger) PingerResource {
+type PingerResource struct {
+	pinger services.Pinger
+}
+
+func NewPingerResource(pinger services.Pinger) PingerResource {
 	return PingerResource{
 		pinger: pinger,
 	}

@@ -1,4 +1,4 @@
-package storage
+package services
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -20,10 +21,10 @@ func TestPing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pm := NewPGXPoolMock()
+			pm := storage.NewPGXPoolMock()
 			pm.On("Ping", mock.Anything).Return(tt.err)
 
-			store := &DatabaseStorage{pool: pm}
+			store := &storage.DatabaseStorage{Pool: pm}
 			pinger := NewPingerService(store)
 
 			err := pinger.Ping(context.Background())
@@ -36,7 +37,7 @@ func TestPing(t *testing.T) {
 }
 
 func TestPingOnUnpingableStorage(t *testing.T) {
-	store := NewMemStorage()
+	store := storage.NewMemStorage()
 	pinger := NewPingerService(store)
 
 	err := pinger.Ping(context.Background())

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -38,9 +39,9 @@ func testRequest(t *testing.T, router http.Handler, method, path string, payload
 	return resp.StatusCode, contentType, respBody
 }
 
-func createTestRouter() (http.Handler, *storage.ServiceMock, *storage.PingerMock) {
+func createTestRouter() (http.Handler, *storage.ServiceMock, *services.PingerMock) {
 	sm := &storage.ServiceMock{}
-	pm := &storage.PingerMock{}
+	pm := &services.PingerMock{}
 
 	router := NewRouter(sm, pm)
 
@@ -266,6 +267,85 @@ func TestUpdateJSONMetric(t *testing.T) {
 
 				assert.Equal(tt.mex, resp)
 			}
+		})
+	}
+}
+
+func TestBatchUpdateMetricsJSON(t *testing.T) {
+	type result struct {
+		code int
+	}
+
+	batchRequest := []metrics.MetricExchange{
+		metrics.NewUpdateCounterMex("PollCount", 42),
+		metrics.NewUpdateGaugeMex("Alloc", 42.42),
+	}
+
+	batchResponse := []storage.Record{
+		{Name: "PollCount", Value: metrics.Counter(42)},
+		{Name: "Alloc", Value: metrics.Gauge(42.42)},
+	}
+
+	tests := []struct {
+		name        string
+		mex         []metrics.MetricExchange
+		mock        func(m *storage.ServiceMock)
+		recorderRv  []storage.Record
+		recorderErr error
+		expected    result
+	}{
+		{
+			name: "should push different metrics",
+			mex:  batchRequest,
+			mock: func(m *storage.ServiceMock) {
+				m.On("PushList", mock.Anything, mock.Anything).Return(batchResponse, nil)
+			},
+			expected: result{code: http.StatusOK},
+		},
+		{
+			name:     "should fail on empty list",
+			mex:      make([]metrics.MetricExchange, 0),
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name:     "should fail on no counter value",
+			mex:      []metrics.MetricExchange{{ID: "xxx", MType: "counter"}},
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name:     "should fail on no gauge value",
+			mex:      []metrics.MetricExchange{{ID: "xxx", MType: "gauge"}},
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name:     "should fail on unknown metric",
+			mex:      []metrics.MetricExchange{{ID: "xxx", MType: "unknown"}},
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name: "should fail if storage offline",
+			mex:  batchRequest,
+			mock: func(m *storage.ServiceMock) {
+				m.On("PushList", mock.Anything, mock.Anything).Return([]storage.Record{}, entities.ErrUnexpected)
+			},
+			expected: result{code: http.StatusInternalServerError},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			router, sm, _ := createTestRouter()
+			if tt.mock != nil {
+				tt.mock(sm)
+			}
+
+			payload, err := json.Marshal(tt.mex)
+			require.NoError(err)
+
+			code, _, _ := testRequest(t, router, http.MethodPost, "/updates", payload)
+			require.Equal(tt.expected.code, code)
 		})
 	}
 }

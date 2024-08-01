@@ -57,6 +57,18 @@ func (s *FileStorage) Push(ctx context.Context, id string, record Record) error 
 	return nil
 }
 
+func (s *FileStorage) PushList(ctx context.Context, data map[string]Record) error {
+	if err := s.MemStorage.PushList(ctx, data); err != nil {
+		return err
+	}
+
+	if s.storeInterval == 0 {
+		return s.dump()
+	}
+
+	return nil
+}
+
 func (s *FileStorage) Close(_ context.Context) error {
 	if s.dumpTicker != nil {
 		s.dumpTicker.Stop()

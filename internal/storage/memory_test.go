@@ -13,8 +13,8 @@ func TestMemStorage_Push(t *testing.T) {
 	strg := NewMemStorage()
 
 	records := []Record{
-		{Name: metrics.KindCounter, Value: metrics.Counter(42)},
-		{Name: metrics.KindGauge, Value: metrics.Gauge(42.42)},
+		{Name: "test", Value: metrics.Counter(42)},
+		{Name: "test", Value: metrics.Gauge(42.42)},
 	}
 
 	for _, r := range records {
@@ -25,6 +25,27 @@ func TestMemStorage_Push(t *testing.T) {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
+		if s, _ := strg.Get(ctx, id); r != s {
+			t.Fatalf("expected record %v, got %v", r, s)
+		}
+	}
+}
+
+func TestMemStorage_PushList(t *testing.T) {
+	ctx := context.Background()
+	strg := NewMemStorage()
+
+	records := map[string]Record{
+		"test_counter": {Name: "test", Value: metrics.Counter(42)},
+		"test_gauge":   {Name: "test", Value: metrics.Gauge(42.42)},
+	}
+
+	err := strg.PushList(ctx, records)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	for id, r := range records {
 		if s, _ := strg.Get(ctx, id); r != s {
 			t.Fatalf("expected record %v, got %v", r, s)
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/spf13/pflag"
 )
@@ -47,7 +48,7 @@ func New() (*Server, error) {
 	}
 
 	storageService := storage.NewService(dataStorage)
-	pingerService := storage.NewPingerService(dataStorage)
+	pingerService := services.NewPingerService(dataStorage)
 	router := NewRouter(storageService, pingerService)
 
 	httpServer := &http.Server{

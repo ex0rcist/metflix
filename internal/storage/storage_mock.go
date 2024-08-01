@@ -23,6 +23,11 @@ func (m *StorageMock) Push(ctx context.Context, id string, record Record) error 
 	return args.Error(0)
 }
 
+func (m *StorageMock) PushList(ctx context.Context, data map[string]Record) error {
+	args := m.Called(ctx, data)
+	return args.Error(0)
+}
+
 func (m *StorageMock) List(ctx context.Context) ([]Record, error) {
 	args := m.Called(ctx)
 

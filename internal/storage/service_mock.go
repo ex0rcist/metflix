@@ -23,6 +23,11 @@ func (m *ServiceMock) Push(ctx context.Context, record Record) (Record, error) {
 	return args.Get(0).(Record), args.Error(1)
 }
 
+func (m *ServiceMock) PushList(ctx context.Context, records []Record) ([]Record, error) {
+	args := m.Called(ctx, records)
+	return args.Get(0).([]Record), args.Error(1)
+}
+
 func (m *ServiceMock) List(ctx context.Context) ([]Record, error) {
 	args := m.Called()
 

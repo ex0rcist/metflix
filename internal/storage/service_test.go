@@ -7,6 +7,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestService_Get(t *testing.T) {
@@ -64,8 +65,6 @@ func TestService_Get(t *testing.T) {
 		})
 	}
 }
-
-// m.On("Push", mock.AnythingOfType("Record")).Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
 
 func TestService_Push(t *testing.T) {
 	tests := []struct {
@@ -168,6 +167,56 @@ func TestService_Push(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, result)
 			}
+		})
+	}
+}
+
+func TestService_PushList(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(m *StorageMock)
+		records  []Record
+		expected []Record
+		wantErr  bool
+	}{
+		{
+			name: "should push list",
+			mock: func(m *StorageMock) {
+				m.On("Get", mock.Anything, "existedCounter_counter").Return(Record{Name: "existedCounter", Value: metrics.Counter(42)}, nil)
+				m.On("Get", mock.Anything, "newCounter_counter").Return(Record{}, entities.ErrRecordNotFound)
+
+				m.On("PushList", mock.Anything, mock.AnythingOfType("map[string]storage.Record")).Return(nil) // no error, successful push
+			},
+			records: []Record{
+				{Name: "existedCounter", Value: metrics.Counter(42)},
+				{Name: "newCounter", Value: metrics.Counter(42)},
+				{Name: "newGauge", Value: metrics.Gauge(42.42)},
+			},
+			expected: []Record{
+				{Name: "existedCounter", Value: metrics.Counter(84)},
+				{Name: "newCounter", Value: metrics.Counter(42)},
+				{Name: "newGauge", Value: metrics.Gauge(42.42)},
+			},
+			wantErr: false,
+		},
+	}
+
+	ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := new(StorageMock)
+			service := NewService(m)
+
+			if tt.mock != nil {
+				tt.mock(m)
+			}
+
+			result, err := service.PushList(ctx, tt.records)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("expected error: %v, got %v", tt.wantErr, err)
+			}
+
+			require.ElementsMatch(t, tt.expected, result)
 		})
 	}
 }

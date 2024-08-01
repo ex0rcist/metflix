@@ -7,12 +7,13 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ex0rcist/metflix/internal/middleware"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 )
 
 func NewRouter(
 	storageService storage.StorageService,
-	pingerService storage.Pinger,
+	pingerService services.Pinger,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -40,12 +41,13 @@ func registerMetricsEndpoints(storageService storage.StorageService, router *chi
 
 	router.Post("/update/{metricKind}/{metricName}/{metricValue}", resource.UpdateMetric)
 	router.Post("/update", resource.UpdateMetricJSON)
+	router.Post("/updates", resource.BatchUpdateMetricsJSON)
 
 	router.Get("/value/{metricKind}/{metricName}", resource.GetMetric)
 	router.Post("/value", resource.GetMetricJSON)
 }
 
-func registerPingerEndpoint(pingerService storage.Pinger, router *chi.Mux) {
+func registerPingerEndpoint(pingerService services.Pinger, router *chi.Mux) {
 	resource := NewPingerResource(pingerService)
 
 	router.Get("/ping", resource.Ping)

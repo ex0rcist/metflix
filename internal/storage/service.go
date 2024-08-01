@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/ex0rcist/metflix/internal/entities"
@@ -14,6 +15,7 @@ import (
 type StorageService interface {
 	List(ctx context.Context) ([]Record, error)
 	Push(ctx context.Context, record Record) (Record, error)
+	PushList(ctx context.Context, records []Record) ([]Record, error)
 	Get(ctx context.Context, name, kind string) (Record, error)
 }
 
@@ -53,6 +55,37 @@ func (s Service) Push(ctx context.Context, record Record) (Record, error) {
 	}
 
 	return record, nil
+}
+
+func (s Service) PushList(ctx context.Context, records []Record) ([]Record, error) {
+	data := make(map[string]Record)
+
+	for _, record := range records {
+		id := record.CalculateRecordID()
+
+		newValue, err := s.calculateNewValue(ctx, record)
+		if err != nil {
+			return nil, fmt.Errorf("unable to calculate new value: %w", err)
+		}
+
+		record.Value = newValue
+		data[id] = record
+	}
+
+	if err := s.Storage.PushList(ctx, data); err != nil {
+		return nil, fmt.Errorf("unable to PushList(): %w", err)
+	}
+
+	result := make([]Record, 0, len(data))
+	for _, v := range data {
+		result = append(result, v)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+
+	return result, nil
 }
 
 func (s Service) List(ctx context.Context) ([]Record, error) {

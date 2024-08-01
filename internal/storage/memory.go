@@ -25,6 +25,17 @@ func (s *MemStorage) Push(_ context.Context, id string, record Record) error {
 	return nil
 }
 
+func (s *MemStorage) PushList(_ context.Context, data map[string]Record) error {
+	// m.Lock()
+	// defer m.Unlock()
+
+	for id, record := range data {
+		s.Data[id] = record
+	}
+
+	return nil
+}
+
 func (s *MemStorage) Get(_ context.Context, id string) (Record, error) {
 	record, ok := s.Data[id]
 	if !ok {
