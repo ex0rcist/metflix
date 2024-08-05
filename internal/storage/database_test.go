@@ -84,6 +84,51 @@ func TestDatabaseStorage_Get(t *testing.T) {
 	mockRow.AssertExpectations(t)
 }
 
+func TestDatabaseStorage_List(t *testing.T) {
+	mockPool := NewPGXPoolMock()
+	storage := DatabaseStorage{Pool: mockPool}
+
+	ctx := context.Background()
+	expectedRecords := []Record{
+		{Name: "name1", Value: metrics.Counter(123)},
+		{Name: "name2", Value: metrics.Gauge(456)},
+	}
+
+	mockRows := new(PGXRowsMock)
+	mockPool.On("Query", ctx, mock.AnythingOfType("string"), []interface{}(nil)).Return(mockRows, nil)
+	mockRows.On("Next").Return(true).Twice()
+	mockRows.On("Next").Return(false)
+
+	counter := 0
+	mockRows.On("Scan", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		rec := expectedRecords[counter]
+		*args.Get(0).(*string) = rec.Name
+		*args.Get(1).(*string) = rec.Value.Kind()
+
+		switch expectedRecords[counter].Value.Kind() {
+		case metrics.KindCounter:
+			value, _ := rec.Value.(metrics.Counter)
+			*args.Get(2).(*float64) = float64(value)
+		case metrics.KindGauge:
+			value, _ := rec.Value.(metrics.Gauge)
+			*args.Get(2).(*float64) = float64(value)
+		}
+
+		counter++
+	}).Twice().Return(nil)
+	mockRows.On("Err").Return(nil)
+	mockRows.On("Close").Return(nil)
+	mockRows.On("CommandTag").Return(pgconn.NewCommandTag("select"))
+
+	records, err := storage.List(ctx)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedRecords, records)
+
+	mockPool.AssertExpectations(t)
+	mockRows.AssertExpectations(t)
+}
+
 func TestDatabaseStorage_Ping(t *testing.T) {
 	mockPool := NewPGXPoolMock()
 	storage := DatabaseStorage{Pool: mockPool}
