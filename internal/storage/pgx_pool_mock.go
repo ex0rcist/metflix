@@ -18,6 +18,11 @@ func NewPGXPoolMock() *PGXPoolMock {
 	return new(PGXPoolMock)
 }
 
+func (m *PGXPoolMock) Begin(ctx context.Context) (pgx.Tx, error) {
+	mArgs := m.Called(ctx)
+	return mArgs.Get(0).(pgx.Tx), mArgs.Error(1)
+}
+
 func (m *PGXPoolMock) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	mArgs := m.Called(ctx, sql, args)
 	return mArgs.Get(0).(pgconn.CommandTag), mArgs.Error(1)

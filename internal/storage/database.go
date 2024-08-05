@@ -34,14 +34,22 @@ func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
 }
 
 func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) error {
-	sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
-	_, err := d.Pool.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String())
-
+	tx, err := d.Pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("db storage Push() error: %w", err)
+		return fmt.Errorf("db storage Push() -> Begin() error: %w", err)
 	}
 
-	return nil
+	sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
+	_, err = tx.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String())
+	if err != nil {
+		rErr := tx.Rollback(ctx)
+		if rErr != nil {
+			return fmt.Errorf("db storage Push() -> Rollback() error: %w", err)
+		}
+		return fmt.Errorf("db storage Push() -> Exec() error: %w", err)
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) error {

@@ -97,7 +97,6 @@ func TestAsyncDumping(t *testing.T) {
 	ctx := context.Background()
 
 	storePath := "test_store.json"
-	defer removeFile(t, storePath)
 
 	fs, err := NewFileStorage(storePath, 1, false)
 	checkNoError(t, err, "failed to create new FileStorage")
@@ -117,6 +116,8 @@ func TestAsyncDumping(t *testing.T) {
 	ms := NewMemStorage()
 	err = json.Unmarshal(data, &ms)
 	checkNoError(t, err, "failed to unmarshal storage file")
+
+	defer removeFile(t, storePath)
 
 	if restored, err := ms.Get(ctx, record.CalculateRecordID()); err != nil || restored != record {
 		t.Errorf("expected record %v, got %v", record, restored)

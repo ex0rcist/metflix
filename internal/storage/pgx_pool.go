@@ -9,6 +9,7 @@ import (
 
 // implements pgxpool.Pool
 type PGXPool interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
 	Ping(ctx context.Context) error
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	SendBatch(ctx context.Context, b *pgx.Batch) (br pgx.BatchResults)
