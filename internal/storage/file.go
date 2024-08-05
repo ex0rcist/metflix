@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/logging"
@@ -16,6 +17,7 @@ var _ MetricsStorage = (*FileStorage)(nil)
 
 type FileStorage struct {
 	*MemStorage
+	sync.Mutex
 
 	storePath      string
 	storeInterval  int
@@ -80,6 +82,9 @@ func (s *FileStorage) Close(_ context.Context) error {
 func (s *FileStorage) dump() (err error) {
 	logging.LogInfo("dumping storage to file " + s.storePath)
 
+	s.Lock()
+	defer s.Unlock()
+
 	file, err := os.OpenFile(s.storePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("error during FileStorage.Dump()/os.OpenFile(): %w", err)
@@ -103,6 +108,9 @@ func (s *FileStorage) dump() (err error) {
 
 func (s *FileStorage) restore() (err error) {
 	logging.LogInfo("restoring storage from file " + s.storePath)
+
+	s.Lock()
+	defer s.Unlock()
 
 	file, err := os.Open(s.storePath)
 	if err != nil {

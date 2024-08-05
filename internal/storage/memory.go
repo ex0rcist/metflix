@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"sync"
 
 	"github.com/ex0rcist/metflix/internal/entities"
 )
@@ -10,6 +11,7 @@ import (
 var _ MetricsStorage = (*MemStorage)(nil)
 
 type MemStorage struct {
+	sync.Mutex
 	Data map[string]Record `json:"records"`
 }
 
@@ -20,14 +22,17 @@ func NewMemStorage() *MemStorage {
 }
 
 func (s *MemStorage) Push(_ context.Context, id string, record Record) error {
+	s.Lock()
+	defer s.Unlock()
+
 	s.Data[id] = record
 
 	return nil
 }
 
 func (s *MemStorage) PushList(_ context.Context, data map[string]Record) error {
-	// m.Lock()
-	// defer m.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	for id, record := range data {
 		s.Data[id] = record
@@ -37,6 +42,9 @@ func (s *MemStorage) PushList(_ context.Context, data map[string]Record) error {
 }
 
 func (s *MemStorage) Get(_ context.Context, id string) (Record, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	record, ok := s.Data[id]
 	if !ok {
 		return Record{}, entities.ErrRecordNotFound
@@ -46,6 +54,9 @@ func (s *MemStorage) Get(_ context.Context, id string) (Record, error) {
 }
 
 func (s *MemStorage) List(_ context.Context) ([]Record, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	arr := make([]Record, len(s.Data))
 
 	i := 0
@@ -58,6 +69,9 @@ func (s *MemStorage) List(_ context.Context) ([]Record, error) {
 }
 
 func (s *MemStorage) Snapshot() *MemStorage {
+	s.Lock()
+	defer s.Unlock()
+
 	snapshot := make(map[string]Record, len(s.Data))
 
 	for k, v := range s.Data {
