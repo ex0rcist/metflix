@@ -95,6 +95,7 @@ func (a *Agent) startPolling() {
 
 func (a *Agent) startReporting() {
 	defer a.wg.Done()
+	defer a.Exporter.Reset()
 
 	for {
 		time.Sleep(utils.IntToDuration(a.Config.ReportInterval))
@@ -144,10 +145,9 @@ func (a *Agent) reportStats() {
 	a.Exporter.
 		Add("PollCount", snapshot.PollCount)
 
-	err := a.Exporter.Send().Error()
+	err := a.Exporter.Send()
 	if err != nil {
 		logging.LogError(fmt.Errorf("error sending metrics: %w", err))
-
 	}
 
 	// because metrics.Counter adds value to itself

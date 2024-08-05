@@ -18,7 +18,7 @@ import (
 
 type Exporter interface {
 	Add(name string, value metrics.Metric) Exporter
-	Send() Exporter
+	Send() error
 	Error() error
 	Reset()
 }
@@ -70,20 +70,19 @@ func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
 	return e
 }
 
-// Send metrics stored in internal buffer to metrics collector in single batch request.
-func (e *MetricsExporter) Send() Exporter {
+func (e *MetricsExporter) Send() error {
 	if e.err != nil {
-		return e
+		return e.err
 	}
 
 	if len(e.buffer) == 0 {
-		e.err = fmt.Errorf("cannot send empty buffer")
-		return e
+		return fmt.Errorf("cannot send empty buffer")
 	}
 
-	e.err = e.doSend()
+	err := e.doSend()
+	e.Reset()
 
-	return e
+	return err
 }
 
 func (e *MetricsExporter) doSend() error {
@@ -109,7 +108,6 @@ func (e *MetricsExporter) doSend() error {
 		return err
 	}
 
-	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("X-Request-Id", requestID)

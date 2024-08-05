@@ -60,5 +60,6 @@ func TestApiClientReport(t *testing.T) {
 
 	api := NewMetricsExporter(&address, RoundTripFunc(rtf))
 	api.Add("test", metrics.Counter(42))
-	api.Send()
+	err := api.Send()
+	require.NoError(t, err)
 }
