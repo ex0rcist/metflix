@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -18,9 +19,9 @@ func NewPGXPoolMock() *PGXPoolMock {
 	return new(PGXPoolMock)
 }
 
-func (m *PGXPoolMock) Begin(ctx context.Context) (pgx.Tx, error) {
+func (m *PGXPoolMock) Acquire(ctx context.Context) (c *pgxpool.Conn, err error) {
 	mArgs := m.Called(ctx)
-	return mArgs.Get(0).(pgx.Tx), mArgs.Error(1)
+	return mArgs.Get(0).(*pgxpool.Conn), mArgs.Error(1)
 }
 
 func (m *PGXPoolMock) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
