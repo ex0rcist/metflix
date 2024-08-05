@@ -19,6 +19,11 @@ func NewPGXPoolMock() *PGXPoolMock {
 	return new(PGXPoolMock)
 }
 
+func (m *PGXPoolMock) Begin(ctx context.Context) (pgx.Tx, error) {
+	mArgs := m.Called(ctx)
+	return mArgs.Get(0).(pgx.Tx), mArgs.Error(1)
+}
+
 func (m *PGXPoolMock) Acquire(ctx context.Context) (c *pgxpool.Conn, err error) {
 	mArgs := m.Called(ctx)
 	return mArgs.Get(0).(*pgxpool.Conn), mArgs.Error(1)

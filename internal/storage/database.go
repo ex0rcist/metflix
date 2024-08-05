@@ -34,51 +34,51 @@ func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
 }
 
 func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) error {
-	// tx, err := d.Pool.Begin(ctx)
-	// if err != nil {
-	// 	return fmt.Errorf("db storage Push() -> Begin() error: %w", err)
-	// }
-
-	// sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
-	// _, err = tx.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String())
-	// if err != nil {
-	// 	rErr := tx.Rollback(ctx)
-	// 	if rErr != nil {
-	// 		return fmt.Errorf("db storage Push() -> Rollback() error: %w", err)
-	// 	}
-	// 	return fmt.Errorf("db storage Push() -> Exec() error: %w", err)
-	// }
-
-	// return tx.Commit(ctx)
-
-	conn, err := d.Pool.Acquire(ctx)
+	tx, err := d.Pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("db storage Push() ->  Acquire: %w", err)
+		return fmt.Errorf("db storage Push() -> Begin() error: %w", err)
 	}
-
-	tx, err := conn.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
-	if err != nil {
-		conn.Release()
-		return fmt.Errorf("db storage Push() ->  BeginTx: %w", err)
-	}
-
-	defer conn.Release()
-	defer func() {
-		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-			logging.LogErrorCtx(ctx, err, "db storage: error on rollback")
-		}
-	}()
 
 	sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
-	if _, err = tx.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String()); err != nil {
-		return fmt.Errorf("db storage Push() -> Exec: %w", err)
+	_, err = tx.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String())
+	if err != nil {
+		rErr := tx.Rollback(ctx)
+		if rErr != nil {
+			return fmt.Errorf("db storage Push() -> Rollback() error: %w", err)
+		}
+		return fmt.Errorf("db storage Push() -> Exec() error: %w", err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("db storage Push() -> Commit: %w", err)
-	}
+	return tx.Commit(ctx)
 
-	return nil
+	// conn, err := d.Pool.Acquire(ctx)
+	// if err != nil {
+	// 	return fmt.Errorf("db storage Push() ->  Acquire: %w", err)
+	// }
+
+	// tx, err := conn.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	// if err != nil {
+	// 	conn.Release()
+	// 	return fmt.Errorf("db storage Push() ->  BeginTx: %w", err)
+	// }
+
+	// defer conn.Release()
+	// defer func() {
+	// 	if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+	// 		logging.LogErrorCtx(ctx, err, "db storage: error on rollback")
+	// 	}
+	// }()
+
+	// sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
+	// if _, err = tx.Exec(ctx, sql, key, record.Name, record.Value.Kind(), record.Value.String()); err != nil {
+	// 	return fmt.Errorf("db storage Push() -> Exec: %w", err)
+	// }
+
+	// if err := tx.Commit(ctx); err != nil {
+	// 	return fmt.Errorf("db storage Push() -> Commit: %w", err)
+	// }
+
+	// return nil
 }
 
 func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) error {
