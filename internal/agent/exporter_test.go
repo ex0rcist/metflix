@@ -21,21 +21,24 @@ func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req), nil
 }
 
-func TestNewApi(t *testing.T) {
+func TestNewMetricsExporter(t *testing.T) {
 	require := require.New(t)
 
 	require.NotPanics(func() {
 		address := entities.Address("localhost")
-		NewAPI(&address, nil)
+		NewMetricsExporter(&address, nil)
 	})
 }
 
 func TestApiClientReport(t *testing.T) {
 	rtf := func(req *http.Request) *http.Response {
-		assert.Equal(t, "http://localhost:8080/update", req.URL.String())
+		assert.Equal(t, "http://localhost:8080/updates", req.URL.String())
 		assert.Equal(t, http.MethodPost, req.Method)
 
-		payload, err := json.Marshal(metrics.NewUpdateCounterMex("test", 42))
+		data := []metrics.MetricExchange{}
+		data = append(data, metrics.NewUpdateCounterMex("test", 42))
+
+		payload, err := json.Marshal(data)
 		require.NoError(t, err)
 
 		expectedPayload, err := compression.Pack(payload)
@@ -55,6 +58,7 @@ func TestApiClientReport(t *testing.T) {
 
 	address := entities.Address("localhost:8080")
 
-	api := NewAPI(&address, RoundTripFunc(rtf))
-	api.Report("test", metrics.Counter(42))
+	api := NewMetricsExporter(&address, RoundTripFunc(rtf))
+	api.Add("test", metrics.Counter(42))
+	api.Send()
 }

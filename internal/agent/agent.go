@@ -13,9 +13,9 @@ import (
 )
 
 type Agent struct {
-	Config *Config
-	Stats  *Stats
-	API    *API
+	Config   *Config
+	Stats    *Stats
+	Exporter Exporter
 
 	wg sync.WaitGroup
 }
@@ -34,12 +34,12 @@ func New() (*Agent, error) {
 	}
 
 	stats := NewStats()
-	api := NewAPI(&config.Address, nil)
+	exporter := NewMetricsExporter(&config.Address, nil)
 
 	return &Agent{
-		Config: config,
-		Stats:  stats,
-		API:    api,
+		Config:   config,
+		Stats:    stats,
+		Exporter: exporter,
 	}, nil
 }
 
@@ -109,40 +109,46 @@ func (a *Agent) reportStats() {
 	// agent continues polling while report is in progress, take snapshot?
 	snapshot := *a.Stats
 
-	a.API.
-		Report("Alloc", snapshot.Runtime.Alloc).
-		Report("BuckHashSys", snapshot.Runtime.BuckHashSys).
-		Report("Frees", snapshot.Runtime.Frees).
-		Report("GCCPUFraction", snapshot.Runtime.GCCPUFraction).
-		Report("GCSys", snapshot.Runtime.GCSys).
-		Report("HeapAlloc", snapshot.Runtime.HeapAlloc).
-		Report("HeapIdle", snapshot.Runtime.HeapIdle).
-		Report("HeapInuse", snapshot.Runtime.HeapInuse).
-		Report("HeapObjects", snapshot.Runtime.HeapObjects).
-		Report("HeapReleased", snapshot.Runtime.HeapReleased).
-		Report("HeapSys", snapshot.Runtime.HeapSys).
-		Report("LastGC", snapshot.Runtime.LastGC).
-		Report("Lookups", snapshot.Runtime.Lookups).
-		Report("MCacheInuse", snapshot.Runtime.MCacheInuse).
-		Report("MCacheSys", snapshot.Runtime.MCacheSys).
-		Report("MSpanInuse", snapshot.Runtime.MSpanInuse).
-		Report("MSpanSys", snapshot.Runtime.MSpanSys).
-		Report("Mallocs", snapshot.Runtime.Mallocs).
-		Report("NextGC", snapshot.Runtime.NextGC).
-		Report("NumForcedGC", snapshot.Runtime.NumForcedGC).
-		Report("NumGC", snapshot.Runtime.NumGC).
-		Report("OtherSys", snapshot.Runtime.OtherSys).
-		Report("PauseTotalNs", snapshot.Runtime.PauseTotalNs).
-		Report("StackInuse", snapshot.Runtime.StackInuse).
-		Report("StackSys", snapshot.Runtime.StackSys).
-		Report("Sys", snapshot.Runtime.Sys).
-		Report("TotalAlloc", snapshot.Runtime.TotalAlloc)
+	a.Exporter.
+		Add("Alloc", snapshot.Runtime.Alloc).
+		Add("BuckHashSys", snapshot.Runtime.BuckHashSys).
+		Add("Frees", snapshot.Runtime.Frees).
+		Add("GCCPUFraction", snapshot.Runtime.GCCPUFraction).
+		Add("GCSys", snapshot.Runtime.GCSys).
+		Add("HeapAlloc", snapshot.Runtime.HeapAlloc).
+		Add("HeapIdle", snapshot.Runtime.HeapIdle).
+		Add("HeapInuse", snapshot.Runtime.HeapInuse).
+		Add("HeapObjects", snapshot.Runtime.HeapObjects).
+		Add("HeapReleased", snapshot.Runtime.HeapReleased).
+		Add("HeapSys", snapshot.Runtime.HeapSys).
+		Add("LastGC", snapshot.Runtime.LastGC).
+		Add("Lookups", snapshot.Runtime.Lookups).
+		Add("MCacheInuse", snapshot.Runtime.MCacheInuse).
+		Add("MCacheSys", snapshot.Runtime.MCacheSys).
+		Add("MSpanInuse", snapshot.Runtime.MSpanInuse).
+		Add("MSpanSys", snapshot.Runtime.MSpanSys).
+		Add("Mallocs", snapshot.Runtime.Mallocs).
+		Add("NextGC", snapshot.Runtime.NextGC).
+		Add("NumForcedGC", snapshot.Runtime.NumForcedGC).
+		Add("NumGC", snapshot.Runtime.NumGC).
+		Add("OtherSys", snapshot.Runtime.OtherSys).
+		Add("PauseTotalNs", snapshot.Runtime.PauseTotalNs).
+		Add("StackInuse", snapshot.Runtime.StackInuse).
+		Add("StackSys", snapshot.Runtime.StackSys).
+		Add("Sys", snapshot.Runtime.Sys).
+		Add("TotalAlloc", snapshot.Runtime.TotalAlloc)
 
-	a.API.
-		Report("RandomValue", snapshot.RandomValue)
+	a.Exporter.
+		Add("RandomValue", snapshot.RandomValue)
 
-	a.API.
-		Report("PollCount", snapshot.PollCount)
+	a.Exporter.
+		Add("PollCount", snapshot.PollCount)
+
+	err := a.Exporter.Send().Error()
+	if err != nil {
+		logging.LogError(fmt.Errorf("error sending metrics: %w", err))
+
+	}
 
 	// because metrics.Counter adds value to itself
 	a.Stats.PollCount -= snapshot.PollCount

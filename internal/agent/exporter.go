@@ -16,12 +16,22 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type API struct {
-	address    *entities.Address
-	httpClient *http.Client
+type Exporter interface {
+	Add(name string, value metrics.Metric) Exporter
+	Send() Exporter
+	Error() error
+	Reset()
 }
 
-func NewAPI(address *entities.Address, httpTransport http.RoundTripper) *API {
+type MetricsExporter struct {
+	baseURL *entities.Address
+	client  *http.Client
+
+	buffer []metrics.MetricExchange
+	err    error
+}
+
+func NewMetricsExporter(baseURL *entities.Address, httpTransport http.RoundTripper) *MetricsExporter {
 	if httpTransport == nil {
 		httpTransport = http.DefaultTransport
 	}
@@ -31,73 +41,115 @@ func NewAPI(address *entities.Address, httpTransport http.RoundTripper) *API {
 		Transport: httpTransport,
 	}
 
-	return &API{
-		address:    address,
-		httpClient: client,
+	return &MetricsExporter{
+		baseURL: baseURL,
+		client:  client,
 	}
 }
 
-func (c *API) Report(name string, metric metrics.Metric) *API {
-	url := "http://" + c.address.String() + "/update"
-
-	requestID := utils.GenerateRequestID()
-	ctx := setupLoggerCtx(requestID)
-	var mex metrics.MetricExchange
-
-	switch metric.Kind() {
-	case metrics.KindCounter:
-		mex = metrics.NewUpdateCounterMex(name, metric.(metrics.Counter))
-	case metrics.KindGauge:
-		mex = metrics.NewUpdateGaugeMex(name, metric.(metrics.Gauge))
-	default:
-		logging.LogError(entities.ErrMetricReport, "unknown metric")
-		return c
+func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
+	if e.err != nil {
+		return e
 	}
 
-	body, err := json.Marshal(mex)
+	var mex metrics.MetricExchange
+	switch value.Kind() {
+	case metrics.KindCounter:
+		mex = metrics.NewUpdateCounterMex(name, value.(metrics.Counter))
+
+	case metrics.KindGauge:
+		mex = metrics.NewUpdateGaugeMex(name, value.(metrics.Gauge))
+
+	default:
+		e.err = entities.ErrMetricUnknown
+		return e
+	}
+
+	e.buffer = append(e.buffer, mex)
+
+	return e
+}
+
+// Send metrics stored in internal buffer to metrics collector in single batch request.
+func (e *MetricsExporter) Send() Exporter {
+	if e.err != nil {
+		return e
+	}
+
+	if len(e.buffer) == 0 {
+		e.err = fmt.Errorf("cannot send empty buffer")
+		return e
+	}
+
+	e.err = e.doSend()
+
+	return e
+}
+
+func (e *MetricsExporter) doSend() error {
+	requestID := utils.GenerateRequestID()
+	ctx := setupLoggerCtx(requestID)
+
+	body, err := json.Marshal(e.buffer)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during marshaling", err.Error())
-		return c
+		return err
 	}
 
 	payload, err := compression.Pack(body)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during compression", err.Error())
-		return c
+		return err
 	}
 
+	url := "http://" + e.baseURL.String() + "/updates"
 	req, err := http.NewRequest(http.MethodPost, url, payload)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "httpRequest error", err.Error())
-		return c
+		return err
 	}
 
+	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("X-Request-Id", requestID)
 
 	logRequest(ctx, url, req.Header, body)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := e.client.Do(req)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error making http request", err.Error())
-		return c
+		return err
 	}
 
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reading response body", err.Error())
-		return c
+		return err
 	}
 
 	logResponse(ctx, resp, respBody)
 
 	if resp.StatusCode != http.StatusOK {
-		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reporting stat", resp.Status, string(respBody))
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reporting stats", resp.Status, string(respBody))
+		return err
 	}
 
-	return c
+	return nil
+}
+
+func (e *MetricsExporter) Reset() {
+	e.buffer = make([]metrics.MetricExchange, 0)
+	e.err = nil
+}
+
+func (e *MetricsExporter) Error() error {
+	if e.err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("metrics export failed: %w", e.err)
 }
 
 func setupLoggerCtx(requestID string) context.Context {
