@@ -63,6 +63,16 @@ func (s Service) PushList(ctx context.Context, records []Record) ([]Record, erro
 	for _, record := range records {
 		id := record.CalculateRecordID()
 
+		if prev, ok := data[id]; ok {
+			if record.Value.Kind() == metrics.KindCounter {
+				record.Value = prev.Value.(metrics.Counter) + record.Value.(metrics.Counter)
+			}
+
+			data[id] = record
+
+			continue
+		}
+
 		newValue, err := s.calculateNewValue(ctx, record)
 		if err != nil {
 			return nil, fmt.Errorf("unable to calculate new value: %w", err)
