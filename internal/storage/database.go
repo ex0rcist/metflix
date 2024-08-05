@@ -85,7 +85,7 @@ func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) {
 	)
 
 	sql := "SELECT name, kind, value FROM metrics WHERE id=$1"
-	err = d.Pool.QueryRow(ctx, sql, key).Scan(&name, &kind, &value)
+	err = d.Pool.QueryRow(ctx, sql, string(key)).Scan(&name, &kind, &value)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

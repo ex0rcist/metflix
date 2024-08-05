@@ -57,3 +57,90 @@ func (m *PGXPoolMock) QueryRow(ctx context.Context, sql string, args ...any) pgx
 func (m *PGXPoolMock) Close() {
 	_ = m.Called()
 }
+
+// ************** PGXBatchResultsMock ************** //
+
+type PGXBatchResultsMock struct {
+	mock.Mock
+}
+
+func (m *PGXBatchResultsMock) Exec() (pgconn.CommandTag, error) {
+	mArgs := m.Called()
+	return mArgs.Get(0).(pgconn.CommandTag), mArgs.Error(1)
+}
+
+func (m *PGXBatchResultsMock) Query() (pgx.Rows, error) {
+	mArgs := m.Called()
+	return mArgs.Get(0).(pgx.Rows), mArgs.Error(1)
+}
+
+func (m *PGXBatchResultsMock) QueryRow() pgx.Row {
+	mArgs := m.Called()
+	return mArgs.Get(0).(pgx.Row)
+}
+
+func (m *PGXBatchResultsMock) Close() error {
+	mArgs := m.Called()
+	return mArgs.Error(0)
+}
+
+// ************** PGXRowMock ************** //
+
+type PGXRowMock struct {
+	mock.Mock
+}
+
+func (m *PGXRowMock) Scan(args ...any) error {
+	mArgs := m.Called(args...)
+	return mArgs.Error(0)
+}
+
+// ************** PGXRowsMock ************** //
+
+type PGXRowsMock struct {
+	mock.Mock
+}
+
+func (m *PGXRowsMock) Close() {
+	_ = m.Called()
+}
+
+func (m *PGXRowsMock) Next() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *PGXRowsMock) Scan(args ...any) error {
+	mArgs := m.Called(args...)
+	return mArgs.Error(0)
+}
+
+func (m *PGXRowsMock) Err() error {
+	mArgs := m.Called()
+	return mArgs.Error(0)
+}
+
+func (m *PGXRowsMock) CommandTag() pgconn.CommandTag {
+	mArgs := m.Called()
+	return mArgs.Get(0).(pgconn.CommandTag)
+}
+
+func (m *PGXRowsMock) FieldDescriptions() []pgconn.FieldDescription {
+	mArgs := m.Called()
+	return mArgs.Get(0).([]pgconn.FieldDescription)
+}
+
+func (m *PGXRowsMock) Values() ([]any, error) {
+	mArgs := m.Called()
+	return mArgs.Get(0).([]any), mArgs.Error(1)
+}
+
+func (m *PGXRowsMock) RawValues() [][]byte {
+	mArgs := m.Called()
+	return mArgs.Get(0).([][]byte)
+}
+
+func (m *PGXRowsMock) Conn() *pgx.Conn {
+	mArgs := m.Called()
+	return mArgs.Get(0).(*pgx.Conn)
+}
