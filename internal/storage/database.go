@@ -10,12 +10,27 @@ import (
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 var _ MetricsStorage = DatabaseStorage{}
 
 type DatabaseStorage struct {
 	Pool PGXPool
+}
+
+type dbQueryTracer struct {
+	logger *zerolog.Logger
+}
+
+func (tracer *dbQueryTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	tracer.logger.Debug().Msg(fmt.Sprintf("Executing command \"%s\" with args %v", data.SQL, data.Args))
+	return ctx
+}
+
+func (tracer *dbQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryEndData) {
+	// empty
 }
 
 func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
@@ -25,7 +40,15 @@ func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
 		return nil, fmt.Errorf("migrations run failed: %w", err)
 	}
 
-	pool, err := pgxpool.New(context.Background(), dsn)
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("pgxpool parsse config failed: %w", err)
+	}
+
+	ctx := context.Background()
+	config.ConnConfig.Tracer = &dbQueryTracer{logger: &log.Logger}
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("pgxpool init failed: %w", err)
 	}
@@ -68,7 +91,7 @@ func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) e
 
 	for i := 0; i < len(data); i++ {
 		if _, err := batchResp.Exec(); err != nil {
-			return fmt.Errorf("DatabaseStorage - PushBatch - batchResp.Exec: %w", err)
+			return fmt.Errorf("db storage PushBatch() Exec error: %w", err)
 		}
 	}
 
