@@ -2,10 +2,16 @@ package logging
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
+
+func LogWarnF(format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	logWarn(&log.Logger, message)
+}
 
 func LogWarn(messages ...string) {
 	logWarn(&log.Logger, messages...)

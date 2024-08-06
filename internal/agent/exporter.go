@@ -70,6 +70,10 @@ func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
 	return e
 }
 
+// NB: реализовано с попытками ретраев через 1, 3, 5 сек согласно ТЗ
+// imho с учетом реализации метрик на сервере, здесь в повторных ретраях нет никакого смысла
+// горутина выполняющая эту функцию будет дожидаться окончания .Do(),
+// пока другая горутина в фоне собирает новые метрики
 func (e *MetricsExporter) Send() error {
 	if e.err != nil {
 		return e.err
@@ -79,7 +83,19 @@ func (e *MetricsExporter) Send() error {
 		return fmt.Errorf("cannot send empty buffer")
 	}
 
-	err := e.doSend()
+	err := utils.NewRetrier(
+		func() error { return e.doSend() },
+		func(err error) bool {
+			_, ok := err.(entities.RetriableError)
+			return ok
+		},
+		[]time.Duration{
+			1 * time.Second,
+			3 * time.Second,
+			5 * time.Second,
+		},
+	).Run()
+
 	e.Reset()
 
 	return err
@@ -117,7 +133,7 @@ func (e *MetricsExporter) doSend() error {
 	resp, err := e.client.Do(req)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error making http request", err.Error())
-		return err
+		return entities.RetriableError{Err: err, RetryAfter: 10 * time.Second}
 	}
 
 	defer resp.Body.Close()

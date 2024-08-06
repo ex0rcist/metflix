@@ -2,10 +2,16 @@ package logging
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
+
+func LogErrorF(format string, err error) {
+	fErr := fmt.Errorf(format, err)
+	logError(&log.Logger, fErr)
+}
 
 func LogError(err error, messages ...string) {
 	logError(&log.Logger, err, messages...)

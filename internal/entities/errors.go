@@ -1,6 +1,10 @@
 package entities
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"time"
+)
 
 var (
 	ErrBadAddressFormat = errors.New("bad net address format")
@@ -25,5 +29,16 @@ var (
 )
 
 func NewStackError(err error) error {
-	return errors.New(err.Error()) // TODO: can we remove this func from stack?
+	return errors.New(err.Error())
+}
+
+var _ error = (*RetriableError)(nil)
+
+type RetriableError struct {
+	Err        error
+	RetryAfter time.Duration
+}
+
+func (e RetriableError) Error() string {
+	return fmt.Sprintf("%s (retry after %v)", e.Err.Error(), e.RetryAfter)
 }
