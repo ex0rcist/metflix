@@ -3,6 +3,7 @@ module github.com/ex0rcist/metflix
 go 1.22.4
 
 require (
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/caarlos0/env/v11 v11.1.0
 	github.com/go-chi/chi v1.5.5
 	github.com/go-chi/chi/v5 v5.1.0
@@ -15,7 +16,6 @@ require (
 )
 
 require (
-	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
