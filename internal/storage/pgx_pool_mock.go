@@ -144,3 +144,62 @@ func (m *PGXRowsMock) Conn() *pgx.Conn {
 	mArgs := m.Called()
 	return mArgs.Get(0).(*pgx.Conn)
 }
+
+// ************** PGXTxMock ************** //
+
+type PGXTxMock struct {
+	mock.Mock
+}
+
+func (m *PGXTxMock) Begin(ctx context.Context) (pgx.Tx, error) {
+	mArgs := m.Called(ctx)
+	return mArgs.Get(0).(pgx.Tx), mArgs.Error(1)
+}
+
+func (m *PGXTxMock) Commit(ctx context.Context) error {
+	mArgs := m.Called(ctx)
+	return mArgs.Error(0)
+}
+
+func (m *PGXTxMock) Rollback(ctx context.Context) error {
+	mArgs := m.Called(ctx)
+	return mArgs.Error(0)
+}
+
+func (m *PGXTxMock) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	mArgs := m.Called(ctx, tableName)
+	return mArgs.Get(0).(int64), mArgs.Error(1)
+}
+
+func (m *PGXTxMock) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	mArgs := m.Called(ctx, b)
+	return mArgs.Get(0).(pgx.BatchResults)
+}
+
+func (m *PGXTxMock) LargeObjects() pgx.LargeObjects {
+	mArgs := m.Called()
+	return mArgs.Get(0).(pgx.LargeObjects)
+}
+
+func (m *PGXTxMock) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
+	mArgs := m.Called(ctx, name, sql)
+	return mArgs.Get(0).(*pgconn.StatementDescription), mArgs.Error(1)
+}
+
+func (m *PGXTxMock) Exec(ctx context.Context, sql string, args ...any) (commandTag pgconn.CommandTag, err error) {
+	varargs := append([]any{ctx, sql}, args...)
+	mArgs := m.Called(varargs...)
+	return mArgs.Get(0).(pgconn.CommandTag), mArgs.Error(1)
+}
+func (m *PGXTxMock) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	mArgs := m.Called(ctx, sql, args)
+	return mArgs.Get(0).(pgx.Rows), mArgs.Error(1)
+}
+func (m *PGXTxMock) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	mArgs := m.Called(ctx, sql, args)
+	return mArgs.Get(0).(pgx.Row)
+}
+func (m *PGXTxMock) Conn() *pgx.Conn {
+	mArgs := m.Called()
+	return mArgs.Get(0).(*pgx.Conn)
+}

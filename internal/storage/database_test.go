@@ -8,33 +8,29 @@ import (
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/pashagolub/pgxmock/v4"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDatabaseStorage_Push(t *testing.T) {
-	mockPool, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mockPool.Close()
-
+	mockPool := NewPGXPoolMock()
 	storage := DatabaseStorage{Pool: mockPool}
 
 	ctx := context.Background()
 	record := Record{Name: "testName", Value: metrics.Counter(123)}
 	key := record.CalculateRecordID()
 
-	mockPool.ExpectBegin()
-	mockPool.ExpectExec("INSERT INTO metrics").WithArgs(key, record.Name, record.Value.Kind(), record.Value.String()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mockPool.ExpectCommit()
+	txMock := new(PGXTxMock)
+	mockPool.On("Begin", mock.Anything).Return(txMock, nil)
+	txMock.
+		On("Exec", mock.Anything, mock.Anything, key, record.Name, record.Value.Kind(), record.Value.String()).
+		Return(pgconn.CommandTag{}, nil)
 
-	err = storage.Push(ctx, key, record)
-	require.NoError(t, err)
+	txMock.On("Commit", mock.Anything).Return(nil)
 
-	if err := mockPool.ExpectationsWereMet(); err != nil {
-		t.Errorf("there were unfulfilled expectations: %s", err)
+	err := storage.Push(ctx, key, record)
+	if err != nil {
+		t.Fatalf("expected no error on Push, got: %v", err)
 	}
 }
 

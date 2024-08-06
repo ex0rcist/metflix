@@ -8,7 +8,6 @@ require (
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/jackc/pgx/v5 v5.6.0
-	github.com/pashagolub/pgxmock/v4 v4.2.0
 	github.com/rs/zerolog v1.33.0
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/pflag v1.0.5
