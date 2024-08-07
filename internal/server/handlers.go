@@ -11,6 +11,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/ex0rcist/metflix/internal/validators"
 )
@@ -36,7 +37,7 @@ func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
 
 	body := fmt.Sprintln("mainpage here.")
 
-	records, err := r.storageService.List()
+	records, err := r.storageService.List(ctx)
 	if err != nil {
 		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
@@ -92,7 +93,7 @@ func (r MetricResource) UpdateMetric(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	newRecord, err := r.storageService.Push(record)
+	newRecord, err := r.storageService.Push(ctx, record)
 	if err != nil {
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
@@ -125,7 +126,7 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	newRecord, err := r.storageService.Push(record)
+	newRecord, err := r.storageService.Push(ctx, record)
 	if err != nil {
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
@@ -145,6 +146,39 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 	}
 }
 
+func (r MetricResource) BatchUpdateMetricsJSON(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	records, err := parseJSONMetricsList(req)
+	if err != nil {
+		if err == io.EOF {
+			err = errors.New("no json provided")
+		}
+
+		writeErrorResponse(ctx, rw, http.StatusBadRequest, err)
+		return
+	}
+
+	recorded, err := r.storageService.PushList(ctx, records)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	resp, err := toMetricExchangeList(recorded)
+	if err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(rw).Encode(resp); err != nil {
+		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
+		return
+	}
+}
+
 func (r MetricResource) GetMetric(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -157,7 +191,7 @@ func (r MetricResource) GetMetric(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	var record storage.Record
-	record, err := r.storageService.Get(metricName, metricKind)
+	record, err := r.storageService.Get(ctx, metricName, metricKind)
 	if err != nil {
 		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
@@ -188,7 +222,7 @@ func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	record, err := r.storageService.Get(mex.ID, mex.MType)
+	record, err := r.storageService.Get(ctx, mex.ID, mex.MType)
 	if err != nil {
 		writeErrorResponse(ctx, rw, errToStatus(err), err)
 		return
@@ -206,6 +240,56 @@ func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request)
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
 	}
+}
+
+func parseJSONMetricsList(r *http.Request) ([]storage.Record, error) {
+	req := make([]metrics.MetricExchange, 0)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, err
+	}
+
+	records := make([]storage.Record, len(req))
+
+	for i := range req {
+		record, err := toRecord(&req[i])
+		if err != nil {
+			return nil, err
+		}
+
+		records[i] = record
+	}
+
+	if len(records) == 0 {
+		return nil, fmt.Errorf("no metrics provided")
+	}
+
+	return records, nil
+}
+
+type PingerResource struct {
+	pinger services.Pinger
+}
+
+func NewPingerResource(pinger services.Pinger) PingerResource {
+	return PingerResource{
+		pinger: pinger,
+	}
+}
+
+func (pr PingerResource) Ping(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	err := pr.pinger.Ping(ctx)
+	if err == nil {
+		return
+	}
+
+	if errors.Is(err, entities.ErrStorageUnpingable) {
+		writeErrorResponse(ctx, w, http.StatusNotImplemented, err)
+		return
+	}
+
+	writeErrorResponse(ctx, w, http.StatusInternalServerError, err)
 }
 
 func errToStatus(err error) int {

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/storage"
@@ -49,4 +51,19 @@ func toMetricExchange(record storage.Record) (*metrics.MetricExchange, error) {
 	}
 
 	return req, nil
+}
+
+func toMetricExchangeList(records []storage.Record) ([]*metrics.MetricExchange, error) {
+	result := make([]*metrics.MetricExchange, len(records))
+
+	for i, record := range records {
+		req, err := toMetricExchange(record)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert record to MetricExchange: %w", err)
+		}
+
+		result[i] = req
+	}
+
+	return result, nil
 }

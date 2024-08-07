@@ -10,6 +10,7 @@ import (
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -36,6 +37,15 @@ func testRequest(t *testing.T, router http.Handler, method, path string, payload
 	require.NoError(t, err)
 
 	return resp.StatusCode, contentType, respBody
+}
+
+func createTestRouter() (http.Handler, *storage.ServiceMock, *services.PingerMock) {
+	sm := &storage.ServiceMock{}
+	pm := &services.PingerMock{}
+
+	router := NewRouter(sm, pm)
+
+	return router, sm, pm
 }
 
 func TestHomepage(t *testing.T) {
@@ -69,10 +79,8 @@ func TestHomepage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		m := storage.ServiceMock{}
-		m.On("List").Return(tt.metrics, nil)
-
-		router := NewRouter(&m)
+		router, sm, _ := createTestRouter()
+		sm.On("List").Return(tt.metrics, nil)
 
 		t.Run(tt.name, func(t *testing.T) {
 			code, _, body := testRequest(t, router, http.MethodGet, tt.path, nil)
@@ -164,13 +172,11 @@ func TestUpdateMetric(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		m := new(storage.ServiceMock)
+		router, sm, _ := createTestRouter()
 
 		if tt.mock != nil {
-			tt.mock(m)
+			tt.mock(sm)
 		}
-
-		router := NewRouter(m)
 
 		t.Run(tt.name, func(t *testing.T) {
 			code, _, body := testRequest(t, router, http.MethodPost, tt.path, nil)
@@ -239,13 +245,11 @@ func TestUpdateJSONMetric(t *testing.T) {
 			assert := assert.New(t)
 			require := require.New(t)
 
-			m := storage.ServiceMock{}
+			router, sm, _ := createTestRouter()
 
 			if tt.mock != nil {
-				tt.mock(&m)
+				tt.mock(sm)
 			}
-
-			router := NewRouter(&m)
 
 			payload, err := json.Marshal(tt.mex)
 			require.NoError(err)
@@ -263,6 +267,85 @@ func TestUpdateJSONMetric(t *testing.T) {
 
 				assert.Equal(tt.mex, resp)
 			}
+		})
+	}
+}
+
+func TestBatchUpdateMetricsJSON(t *testing.T) {
+	type result struct {
+		code int
+	}
+
+	batchRequest := []metrics.MetricExchange{
+		metrics.NewUpdateCounterMex("PollCount", 42),
+		metrics.NewUpdateGaugeMex("Alloc", 42.42),
+	}
+
+	batchResponse := []storage.Record{
+		{Name: "PollCount", Value: metrics.Counter(42)},
+		{Name: "Alloc", Value: metrics.Gauge(42.42)},
+	}
+
+	tests := []struct {
+		name        string
+		mex         []metrics.MetricExchange
+		mock        func(m *storage.ServiceMock)
+		recorderRv  []storage.Record
+		recorderErr error
+		expected    result
+	}{
+		{
+			name: "should push different metrics",
+			mex:  batchRequest,
+			mock: func(m *storage.ServiceMock) {
+				m.On("PushList", mock.Anything, mock.Anything).Return(batchResponse, nil)
+			},
+			expected: result{code: http.StatusOK},
+		},
+		{
+			name:     "should fail on empty list",
+			mex:      make([]metrics.MetricExchange, 0),
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name:     "should fail on no counter value",
+			mex:      []metrics.MetricExchange{{ID: "xxx", MType: "counter"}},
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name:     "should fail on no gauge value",
+			mex:      []metrics.MetricExchange{{ID: "xxx", MType: "gauge"}},
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name:     "should fail on unknown metric",
+			mex:      []metrics.MetricExchange{{ID: "xxx", MType: "unknown"}},
+			expected: result{code: http.StatusBadRequest},
+		},
+		{
+			name: "should fail if storage offline",
+			mex:  batchRequest,
+			mock: func(m *storage.ServiceMock) {
+				m.On("PushList", mock.Anything, mock.Anything).Return([]storage.Record{}, entities.ErrUnexpected)
+			},
+			expected: result{code: http.StatusInternalServerError},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			router, sm, _ := createTestRouter()
+			if tt.mock != nil {
+				tt.mock(sm)
+			}
+
+			payload, err := json.Marshal(tt.mex)
+			require.NoError(err)
+
+			code, _, _ := testRequest(t, router, http.MethodPost, "/updates", payload)
+			require.Equal(tt.expected.code, code)
 		})
 	}
 }
@@ -319,11 +402,10 @@ func TestGetMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := storage.ServiceMock{}
-			router := NewRouter(&m)
+			router, sm, _ := createTestRouter()
 
 			if tt.mock != nil {
-				tt.mock(&m)
+				tt.mock(sm)
 			}
 
 			code, _, body := testRequest(t, router, http.MethodGet, tt.path, nil)
@@ -426,13 +508,11 @@ func TestGetMetricJSON(t *testing.T) {
 			assert := assert.New(t)
 			require := require.New(t)
 
-			m := storage.ServiceMock{}
+			router, sm, _ := createTestRouter()
 
 			if tt.mock != nil {
-				tt.mock(&m)
+				tt.mock(sm)
 			}
-
-			router := NewRouter(&m)
 
 			payload, err := json.Marshal(tt.mex)
 			require.NoError(err)
@@ -448,6 +528,53 @@ func TestGetMetricJSON(t *testing.T) {
 				require.NoError(err)
 
 				assert.Equal(tt.expected.body, resp)
+			}
+		})
+	}
+}
+
+func TestPing(t *testing.T) {
+	type result struct {
+		code int
+	}
+
+	tests := []struct {
+		name         string
+		pingResponse error
+		expected     result
+	}{
+		{
+			name:         "should return ok if storage is ok",
+			pingResponse: nil,
+			expected: result{
+				code: http.StatusOK,
+			},
+		},
+		{
+			name:         "should return not implemented if storage doesn't support ping",
+			pingResponse: entities.ErrStorageUnpingable,
+			expected: result{
+				code: http.StatusNotImplemented,
+			},
+		},
+		{
+			name:         "should return internal server error if storage offline",
+			pingResponse: entities.ErrUnexpected,
+			expected: result{
+				code: http.StatusInternalServerError,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router, _, pm := createTestRouter()
+			pm.On("Ping", mock.Anything).Return(tt.pingResponse)
+
+			code, _, _ := testRequest(t, router, http.MethodGet, "/ping", nil)
+
+			if tt.expected.code != code {
+				t.Fatalf("expected response to be %d, got: %d", tt.expected.code, code)
 			}
 		})
 	}

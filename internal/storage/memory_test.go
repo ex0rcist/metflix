@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ex0rcist/metflix/internal/metrics"
@@ -8,28 +9,51 @@ import (
 )
 
 func TestMemStorage_Push(t *testing.T) {
+	ctx := context.Background()
 	strg := NewMemStorage()
 
 	records := []Record{
-		{Name: metrics.KindCounter, Value: metrics.Counter(42)},
-		{Name: metrics.KindGauge, Value: metrics.Gauge(42.42)},
+		{Name: "test", Value: metrics.Counter(42)},
+		{Name: "test", Value: metrics.Gauge(42.42)},
 	}
 
 	for _, r := range records {
 		id := r.CalculateRecordID()
 
-		err := strg.Push(id, r)
+		err := strg.Push(ctx, id, r)
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		if s, _ := strg.Get(id); r != s {
+		if s, _ := strg.Get(ctx, id); r != s {
+			t.Fatalf("expected record %v, got %v", r, s)
+		}
+	}
+}
+
+func TestMemStorage_PushList(t *testing.T) {
+	ctx := context.Background()
+	strg := NewMemStorage()
+
+	records := map[string]Record{
+		"test_counter": {Name: "test", Value: metrics.Counter(42)},
+		"test_gauge":   {Name: "test", Value: metrics.Gauge(42.42)},
+	}
+
+	err := strg.PushList(ctx, records)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	for id, r := range records {
+		if s, _ := strg.Get(ctx, id); r != s {
 			t.Fatalf("expected record %v, got %v", r, s)
 		}
 	}
 }
 
 func TestMemStorage_Push_WithSameName(t *testing.T) {
+	ctx := context.Background()
 	strg := NewMemStorage()
 
 	counterValue := metrics.Counter(42)
@@ -43,17 +67,17 @@ func TestMemStorage_Push_WithSameName(t *testing.T) {
 	for _, r := range records {
 		id := r.CalculateRecordID()
 
-		if err := strg.Push(id, r); err != nil {
+		if err := strg.Push(ctx, id, r); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 	}
 
-	storedCounter, err := strg.Get(records[0].CalculateRecordID())
+	storedCounter, err := strg.Get(ctx, records[0].CalculateRecordID())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	storedGauge, err := strg.Get(records[1].CalculateRecordID())
+	storedGauge, err := strg.Get(ctx, records[1].CalculateRecordID())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -68,9 +92,10 @@ func TestMemStorage_Push_WithSameName(t *testing.T) {
 }
 
 func TestMemStorage_Get(t *testing.T) {
+	ctx := context.Background()
 	strg := NewMemStorage()
 	record := Record{Name: "1", Value: metrics.Counter(42)}
-	err := strg.Push(record.CalculateRecordID(), record)
+	err := strg.Push(ctx, record.CalculateRecordID(), record)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -87,7 +112,7 @@ func TestMemStorage_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := strg.Get(tt.id)
+			got, err := strg.Get(ctx, tt.id)
 			if (err != nil) != tt.wantError {
 				t.Fatalf("expected error: %v, got %v", tt.wantError, err)
 			}
@@ -99,6 +124,7 @@ func TestMemStorage_Get(t *testing.T) {
 }
 
 func TestMemStorage_List(t *testing.T) {
+	ctx := context.Background()
 	storage := NewMemStorage()
 
 	records := []Record{
@@ -106,17 +132,17 @@ func TestMemStorage_List(t *testing.T) {
 		{Name: metrics.KindCounter, Value: metrics.Counter(42)},
 	}
 
-	err := storage.Push(records[0].CalculateRecordID(), records[0])
+	err := storage.Push(ctx, records[0].CalculateRecordID(), records[0])
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	err = storage.Push(records[1].CalculateRecordID(), records[1])
+	err = storage.Push(ctx, records[1].CalculateRecordID(), records[1])
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	got, err := storage.List()
+	got, err := storage.List(ctx)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

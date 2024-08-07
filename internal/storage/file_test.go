@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -43,6 +44,7 @@ func TestNewFileStorage(t *testing.T) {
 }
 
 func TestSyncPushAndDump(t *testing.T) {
+	ctx := context.Background()
 	storePath := "test_store.json"
 	defer removeFile(t, storePath)
 
@@ -50,7 +52,7 @@ func TestSyncPushAndDump(t *testing.T) {
 	checkNoError(t, err, "failed to create new FileStorage")
 
 	record := Record{Name: "test", Value: metrics.Counter(42)}
-	err = fs.Push(record.CalculateRecordID(), record)
+	err = fs.Push(ctx, record.CalculateRecordID(), record)
 	checkNoError(t, err, "failed to push record")
 
 	data, err := os.ReadFile(storePath)
@@ -59,12 +61,14 @@ func TestSyncPushAndDump(t *testing.T) {
 	err = json.Unmarshal(data, &fs.MemStorage)
 	checkNoError(t, err, "failed to unmarshal storage file")
 
-	if got, err := fs.Get(record.CalculateRecordID()); err != nil || got != record {
+	if got, err := fs.Get(ctx, record.CalculateRecordID()); err != nil || got != record {
 		t.Errorf("expected record %v, got %v", record, got)
 	}
 }
 
 func TestRestore(t *testing.T) {
+	ctx := context.Background()
+
 	storePath := "test_store.json"
 	defer removeFile(t, storePath)
 
@@ -73,14 +77,14 @@ func TestRestore(t *testing.T) {
 	checkNoError(t, err, "failed to create new FileStorage")
 
 	record := Record{Name: "test", Value: metrics.Counter(42)}
-	err = fs1.Push(record.CalculateRecordID(), record) // dumped
+	err = fs1.Push(ctx, record.CalculateRecordID(), record) // dumped
 	checkNoError(t, err, "failed to push to FileStorage")
 
 	// new storage from dump
 	fs2, err := NewFileStorage(storePath, 0, true)
 	checkNoError(t, err, "failed to create new FileStorage")
 
-	restoredRecord, err := fs2.Get(record.CalculateRecordID())
+	restoredRecord, err := fs2.Get(ctx, record.CalculateRecordID())
 	if err != nil {
 		checkNoError(t, err, "expected to find restored record, but did not")
 	}
@@ -90,6 +94,8 @@ func TestRestore(t *testing.T) {
 }
 
 func TestAsyncDumping(t *testing.T) {
+	ctx := context.Background()
+
 	storePath := "test_store.json"
 	defer removeFile(t, storePath)
 
@@ -97,12 +103,12 @@ func TestAsyncDumping(t *testing.T) {
 	checkNoError(t, err, "failed to create new FileStorage")
 
 	record := Record{Name: "test", Value: metrics.Counter(42)}
-	err = fs.Push(record.CalculateRecordID(), record)
+	err = fs.Push(ctx, record.CalculateRecordID(), record)
 	checkNoError(t, err, "failed to push record")
 
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(1200 * time.Millisecond)
 
-	err = fs.Close()
+	err = fs.Close(ctx)
 	checkNoError(t, err, "failed to close fs")
 
 	data, err := os.ReadFile(storePath)
@@ -112,7 +118,7 @@ func TestAsyncDumping(t *testing.T) {
 	err = json.Unmarshal(data, &ms)
 	checkNoError(t, err, "failed to unmarshal storage file")
 
-	if restored, err := ms.Get(record.CalculateRecordID()); err != nil || restored != record {
+	if restored, err := ms.Get(ctx, record.CalculateRecordID()); err != nil || restored != record {
 		t.Errorf("expected record %v, got %v", record, restored)
 	}
 }

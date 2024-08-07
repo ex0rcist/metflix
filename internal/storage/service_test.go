@@ -1,11 +1,13 @@
 package storage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestService_Get(t *testing.T) {
@@ -24,7 +26,7 @@ func TestService_Get(t *testing.T) {
 		{
 			name: "existing record",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_counter").Return(Record{Name: "test", Value: metrics.Counter(42)}, nil)
+				m.On("Get", mock.Anything, "test_counter").Return(Record{Name: "test", Value: metrics.Counter(42)}, nil)
 
 			},
 			args:     args{name: "test", kind: metrics.KindCounter},
@@ -35,7 +37,7 @@ func TestService_Get(t *testing.T) {
 		{
 			name: "non-existing record",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_counter").Return(Record{}, entities.ErrRecordNotFound)
+				m.On("Get", mock.Anything, "test_counter").Return(Record{}, entities.ErrRecordNotFound)
 			},
 			args:     args{name: "test", kind: metrics.KindCounter},
 			expected: Record{},
@@ -43,6 +45,7 @@ func TestService_Get(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := new(StorageMock)
@@ -52,7 +55,7 @@ func TestService_Get(t *testing.T) {
 				tt.mock(m)
 			}
 
-			result, err := service.Get(tt.args.name, tt.args.kind)
+			result, err := service.Get(ctx, tt.args.name, tt.args.kind)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("expected error: %v, got %v", tt.wantErr, err)
 			}
@@ -62,8 +65,6 @@ func TestService_Get(t *testing.T) {
 		})
 	}
 }
-
-// m.On("Push", mock.AnythingOfType("Record")).Return(storage.Record{Name: "test", Value: metrics.Counter(42)}, nil)
 
 func TestService_Push(t *testing.T) {
 	tests := []struct {
@@ -78,8 +79,8 @@ func TestService_Push(t *testing.T) {
 			mock: func(m *StorageMock) {
 				r := Record{Name: "test", Value: metrics.Counter(42)}
 
-				m.On("Get", "test_counter").Return(Record{}, entities.ErrRecordNotFound)
-				m.On("Push", "test_counter", r).Return(nil) // no error, successful push
+				m.On("Get", mock.Anything, "test_counter").Return(Record{}, entities.ErrRecordNotFound)
+				m.On("Push", mock.Anything, "test_counter", r).Return(nil) // no error, successful push
 			},
 			record:   Record{Name: "test", Value: metrics.Counter(42)},
 			expected: Record{Name: "test", Value: metrics.Counter(42)},
@@ -91,8 +92,8 @@ func TestService_Push(t *testing.T) {
 				oldr := Record{Name: "test", Value: metrics.Counter(42)}
 				newr := Record{Name: "test", Value: metrics.Counter(84)}
 
-				m.On("Get", "test_counter").Return(oldr, nil)
-				m.On("Push", "test_counter", newr).Return(nil) // no error, successful push
+				m.On("Get", mock.Anything, "test_counter").Return(oldr, nil)
+				m.On("Push", mock.Anything, "test_counter", newr).Return(nil) // no error, successful push
 			},
 			record:   Record{Name: "test", Value: metrics.Counter(42)},
 			expected: Record{Name: "test", Value: metrics.Counter(84)},
@@ -103,8 +104,8 @@ func TestService_Push(t *testing.T) {
 			mock: func(m *StorageMock) {
 				r := Record{Name: "test", Value: metrics.Gauge(42.42)}
 
-				m.On("Get", "test_gauge").Return(Record{}, entities.ErrRecordNotFound)
-				m.On("Push", "test_gauge", r).Return(nil) // no error, successful push
+				m.On("Get", mock.Anything, "test_gauge").Return(Record{}, entities.ErrRecordNotFound)
+				m.On("Push", mock.Anything, "test_gauge", r).Return(nil) // no error, successful push
 			},
 			record:   Record{Name: "test", Value: metrics.Gauge(42.42)},
 			expected: Record{Name: "test", Value: metrics.Gauge(42.42)},
@@ -116,8 +117,8 @@ func TestService_Push(t *testing.T) {
 				oldr := Record{Name: "test", Value: metrics.Gauge(42.42)}
 				newr := Record{Name: "test", Value: metrics.Gauge(43.43)}
 
-				m.On("Get", "test_gauge").Return(oldr, nil)
-				m.On("Push", "test_gauge", newr).Return(nil) // no error, successful push
+				m.On("Get", mock.Anything, "test_gauge").Return(oldr, nil)
+				m.On("Push", mock.Anything, "test_gauge", newr).Return(nil) // no error, successful push
 			},
 			record:   Record{Name: "test", Value: metrics.Gauge(43.43)},
 			expected: Record{Name: "test", Value: metrics.Gauge(43.43)},
@@ -126,7 +127,7 @@ func TestService_Push(t *testing.T) {
 		{
 			name: "underlying error",
 			mock: func(m *StorageMock) {
-				m.On("Push", "test_gauge", mock.AnythingOfType("Record")).Return(entities.ErrUnexpected)
+				m.On("Push", mock.Anything, "test_gauge", mock.AnythingOfType("Record")).Return(entities.ErrUnexpected)
 			},
 			record:   Record{Name: "test", Value: metrics.Gauge(43.43)},
 			expected: Record{},
@@ -141,7 +142,7 @@ func TestService_Push(t *testing.T) {
 		{
 			name: "storage get error",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_counter").Return(Record{}, entities.ErrUnexpected)
+				m.On("Get", mock.Anything, "test_counter").Return(Record{}, entities.ErrUnexpected)
 			},
 			record:   Record{Name: "test", Value: metrics.Counter(43)},
 			expected: Record{},
@@ -149,6 +150,7 @@ func TestService_Push(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := new(StorageMock)
@@ -158,13 +160,63 @@ func TestService_Push(t *testing.T) {
 				tt.mock(m)
 			}
 
-			result, err := service.Push(tt.record)
+			result, err := service.Push(ctx, tt.record)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("expected error: %v, got %v", tt.wantErr, err)
 			}
 			if result != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, result)
 			}
+		})
+	}
+}
+
+func TestService_PushList(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     func(m *StorageMock)
+		records  []Record
+		expected []Record
+		wantErr  bool
+	}{
+		{
+			name: "should push list",
+			mock: func(m *StorageMock) {
+				m.On("Get", mock.Anything, "existedCounter_counter").Return(Record{Name: "existedCounter", Value: metrics.Counter(42)}, nil)
+				m.On("Get", mock.Anything, "newCounter_counter").Return(Record{}, entities.ErrRecordNotFound)
+
+				m.On("PushList", mock.Anything, mock.AnythingOfType("map[string]storage.Record")).Return(nil) // no error, successful push
+			},
+			records: []Record{
+				{Name: "existedCounter", Value: metrics.Counter(42)},
+				{Name: "newCounter", Value: metrics.Counter(42)},
+				{Name: "newGauge", Value: metrics.Gauge(42.42)},
+			},
+			expected: []Record{
+				{Name: "existedCounter", Value: metrics.Counter(84)},
+				{Name: "newCounter", Value: metrics.Counter(42)},
+				{Name: "newGauge", Value: metrics.Gauge(42.42)},
+			},
+			wantErr: false,
+		},
+	}
+
+	ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := new(StorageMock)
+			service := NewService(m)
+
+			if tt.mock != nil {
+				tt.mock(m)
+			}
+
+			result, err := service.PushList(ctx, tt.records)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("expected error: %v, got %v", tt.wantErr, err)
+			}
+
+			require.ElementsMatch(t, tt.expected, result)
 		})
 	}
 }
@@ -179,7 +231,7 @@ func TestService_List(t *testing.T) {
 		{
 			name: "normal list",
 			mock: func(m *StorageMock) {
-				m.On("List").Return([]Record{
+				m.On("List", mock.Anything).Return([]Record{
 					{Name: "metricX", Value: metrics.Counter(42)},
 					{Name: "metricA", Value: metrics.Gauge(42.42)},
 				}, nil)
@@ -194,13 +246,14 @@ func TestService_List(t *testing.T) {
 		{
 			name: "had error",
 			mock: func(m *StorageMock) {
-				m.On("List").Return([]Record{}, entities.ErrUnexpected)
+				m.On("List", mock.Anything).Return([]Record{}, entities.ErrUnexpected)
 			},
 			expected: []Record{},
 			wantErr:  true,
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := new(StorageMock)
@@ -210,7 +263,7 @@ func TestService_List(t *testing.T) {
 				tt.mock(m)
 			}
 
-			result, err := service.List()
+			result, err := service.List(ctx)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("expected error: %v, got %v", tt.wantErr, err)
 			}
@@ -241,7 +294,7 @@ func TestService_calculateNewValue(t *testing.T) {
 		{
 			name: "new counter record",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_counter").Return(Record{}, entities.ErrRecordNotFound)
+				m.On("Get", mock.Anything, "test_counter").Return(Record{}, entities.ErrRecordNotFound)
 			},
 			record:   Record{Name: "test", Value: metrics.Counter(42)},
 			expected: metrics.Counter(42),
@@ -250,7 +303,7 @@ func TestService_calculateNewValue(t *testing.T) {
 		{
 			name: "existing counter record",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_counter").Return(Record{Name: "test", Value: metrics.Counter(42)}, nil)
+				m.On("Get", mock.Anything, "test_counter").Return(Record{Name: "test", Value: metrics.Counter(42)}, nil)
 			},
 			record:   Record{Name: "test", Value: metrics.Counter(42)},
 			expected: metrics.Counter(84),
@@ -259,7 +312,7 @@ func TestService_calculateNewValue(t *testing.T) {
 		{
 			name: "new gauge record",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_gauge").Return(Record{}, entities.ErrRecordNotFound)
+				m.On("Get", mock.Anything, "test_gauge").Return(Record{}, entities.ErrRecordNotFound)
 			},
 			record:   Record{Name: "test", Value: metrics.Gauge(42.42)},
 			expected: metrics.Gauge(42.42),
@@ -268,7 +321,7 @@ func TestService_calculateNewValue(t *testing.T) {
 		{
 			name: "existing gauge record",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_gauge").Return(Record{Name: "test", Value: metrics.Gauge(42.42)})
+				m.On("Get", mock.Anything, "test_gauge").Return(Record{Name: "test", Value: metrics.Gauge(42.42)})
 			},
 			record:   Record{Name: "test", Value: metrics.Gauge(43.43)},
 			expected: metrics.Gauge(43.43),
@@ -277,7 +330,7 @@ func TestService_calculateNewValue(t *testing.T) {
 		{
 			name: "underlying error",
 			mock: func(m *StorageMock) {
-				m.On("Get", "test_counter").Return(Record{}, entities.ErrUnexpected)
+				m.On("Get", mock.Anything, "test_counter").Return(Record{}, entities.ErrUnexpected)
 			},
 			record:   Record{Name: "test", Value: metrics.Counter(42)},
 			expected: nil,
@@ -285,6 +338,7 @@ func TestService_calculateNewValue(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
@@ -295,7 +349,7 @@ func TestService_calculateNewValue(t *testing.T) {
 				tt.mock(m)
 			}
 
-			result, err := service.calculateNewValue(tt.record)
+			result, err := service.calculateNewValue(ctx, tt.record)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("expected error: %v, got %v", tt.wantErr, err)
 			}

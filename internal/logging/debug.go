@@ -2,10 +2,16 @@ package logging
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
+
+func LogDebugF(format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	logDebug(&log.Logger, message)
+}
 
 func LogDebug(messages ...string) {
 	logDebug(&log.Logger, messages...)

@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/logging"
@@ -15,6 +17,7 @@ var _ MetricsStorage = (*FileStorage)(nil)
 
 type FileStorage struct {
 	*MemStorage
+	sync.Mutex
 
 	storePath      string
 	storeInterval  int
@@ -44,8 +47,8 @@ func NewFileStorage(storePath string, storeInterval int, restoreOnStart bool) (*
 	return fs, nil
 }
 
-func (s *FileStorage) Push(id string, record Record) error {
-	if err := s.MemStorage.Push(id, record); err != nil {
+func (s *FileStorage) Push(ctx context.Context, id string, record Record) error {
+	if err := s.MemStorage.Push(ctx, id, record); err != nil {
 		return err
 	}
 
@@ -56,7 +59,19 @@ func (s *FileStorage) Push(id string, record Record) error {
 	return nil
 }
 
-func (s *FileStorage) Close() error {
+func (s *FileStorage) PushList(ctx context.Context, data map[string]Record) error {
+	if err := s.MemStorage.PushList(ctx, data); err != nil {
+		return err
+	}
+
+	if s.storeInterval == 0 {
+		return s.dump()
+	}
+
+	return nil
+}
+
+func (s *FileStorage) Close(_ context.Context) error {
 	if s.dumpTicker != nil {
 		s.dumpTicker.Stop()
 	}
@@ -66,6 +81,9 @@ func (s *FileStorage) Close() error {
 
 func (s *FileStorage) dump() (err error) {
 	logging.LogInfo("dumping storage to file " + s.storePath)
+
+	s.Lock()
+	defer s.Unlock()
 
 	file, err := os.OpenFile(s.storePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
@@ -90,6 +108,9 @@ func (s *FileStorage) dump() (err error) {
 
 func (s *FileStorage) restore() (err error) {
 	logging.LogInfo("restoring storage from file " + s.storePath)
+
+	s.Lock()
+	defer s.Unlock()
 
 	file, err := os.Open(s.storePath)
 	if err != nil {

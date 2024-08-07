@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/ex0rcist/metflix/internal/entities"
@@ -11,26 +13,27 @@ import (
 // Common interface for service layer
 // Storage service prepares data before calling storage
 type StorageService interface {
-	List() ([]Record, error)
-	Push(record Record) (Record, error)
-	Get(name, kind string) (Record, error)
+	List(ctx context.Context) ([]Record, error)
+	Push(ctx context.Context, record Record) (Record, error)
+	PushList(ctx context.Context, records []Record) ([]Record, error)
+	Get(ctx context.Context, name, kind string) (Record, error)
 }
 
 // ensure Service implements StorageService
 var _ StorageService = Service{}
 
 type Service struct {
-	storage MetricsStorage
+	Storage MetricsStorage
 }
 
 func NewService(storage MetricsStorage) Service {
-	return Service{storage: storage}
+	return Service{Storage: storage}
 }
 
-func (s Service) Get(name, kind string) (Record, error) {
+func (s Service) Get(ctx context.Context, name, kind string) (Record, error) {
 	id := CalculateRecordID(name, kind)
 
-	record, err := s.storage.Get(id)
+	record, err := s.Storage.Get(ctx, id)
 	if err != nil {
 		return Record{}, err
 	}
@@ -38,14 +41,14 @@ func (s Service) Get(name, kind string) (Record, error) {
 	return record, nil
 }
 
-func (s Service) Push(record Record) (Record, error) {
-	newValue, err := s.calculateNewValue(record)
+func (s Service) Push(ctx context.Context, record Record) (Record, error) {
+	newValue, err := s.calculateNewValue(ctx, record)
 	if err != nil {
 		return Record{}, err
 	}
 
 	record.Value = newValue
-	err = s.storage.Push(record.CalculateRecordID(), record)
+	err = s.Storage.Push(ctx, record.CalculateRecordID(), record)
 
 	if err != nil {
 		return Record{}, err
@@ -54,8 +57,49 @@ func (s Service) Push(record Record) (Record, error) {
 	return record, nil
 }
 
-func (s Service) List() ([]Record, error) {
-	records, err := s.storage.List()
+func (s Service) PushList(ctx context.Context, records []Record) ([]Record, error) {
+	data := make(map[string]Record)
+
+	for _, record := range records {
+		id := record.CalculateRecordID()
+
+		if prev, ok := data[id]; ok {
+			if record.Value.Kind() == metrics.KindCounter {
+				record.Value = prev.Value.(metrics.Counter) + record.Value.(metrics.Counter)
+			}
+
+			data[id] = record
+
+			continue
+		}
+
+		newValue, err := s.calculateNewValue(ctx, record)
+		if err != nil {
+			return nil, fmt.Errorf("unable to calculate new value: %w", err)
+		}
+
+		record.Value = newValue
+		data[id] = record
+	}
+
+	if err := s.Storage.PushList(ctx, data); err != nil {
+		return nil, fmt.Errorf("unable to PushList(): %w", err)
+	}
+
+	result := make([]Record, 0, len(data))
+	for _, v := range data {
+		result = append(result, v)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+
+	return result, nil
+}
+
+func (s Service) List(ctx context.Context) ([]Record, error) {
+	records, err := s.Storage.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +111,7 @@ func (s Service) List() ([]Record, error) {
 	return records, nil
 }
 
-func (s Service) calculateNewValue(record Record) (metrics.Metric, error) {
+func (s Service) calculateNewValue(ctx context.Context, record Record) (metrics.Metric, error) {
 	if record.Value.Kind() != metrics.KindCounter {
 		return record.Value, nil
 	}
@@ -77,7 +121,7 @@ func (s Service) calculateNewValue(record Record) (metrics.Metric, error) {
 		return record.Value, entities.ErrMetricMissingName
 	}
 
-	storedRecord, err := s.storage.Get(id)
+	storedRecord, err := s.Storage.Get(ctx, id)
 	if errors.Is(err, entities.ErrRecordNotFound) {
 		return record.Value, nil
 	} else if err != nil {
