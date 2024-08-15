@@ -26,7 +26,7 @@ func TestNewMetricsExporter(t *testing.T) {
 
 	require.NotPanics(func() {
 		address := entities.Address("localhost")
-		NewMetricsExporter(&address, nil)
+		NewMetricsExporter(&address, nil, nil)
 	})
 }
 
@@ -58,7 +58,7 @@ func TestApiClientReport(t *testing.T) {
 
 	address := entities.Address("localhost:8080")
 
-	api := NewMetricsExporter(&address, RoundTripFunc(rtf))
+	api := NewMetricsExporter(&address, RoundTripFunc(rtf), nil) // TODO: add signer mock
 	api.Add("test", metrics.Counter(42))
 	err := api.Send()
 	require.NoError(t, err)

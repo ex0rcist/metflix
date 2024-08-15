@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/rs/zerolog/log"
 )
@@ -26,16 +28,13 @@ type Exporter interface {
 type MetricsExporter struct {
 	baseURL *entities.Address
 	client  *http.Client
+	signer  services.Signer
 
 	buffer []metrics.MetricExchange
 	err    error
 }
 
-func NewMetricsExporter(baseURL *entities.Address, httpTransport http.RoundTripper) *MetricsExporter {
-	if httpTransport == nil {
-		httpTransport = http.DefaultTransport
-	}
-
+func NewMetricsExporter(baseURL *entities.Address, httpTransport http.RoundTripper, signer services.Signer) *MetricsExporter {
 	client := &http.Client{
 		Timeout:   2 * time.Second,
 		Transport: httpTransport,
@@ -44,6 +43,7 @@ func NewMetricsExporter(baseURL *entities.Address, httpTransport http.RoundTripp
 	return &MetricsExporter{
 		baseURL: baseURL,
 		client:  client,
+		signer:  signer,
 	}
 }
 
@@ -128,6 +128,16 @@ func (e *MetricsExporter) doSend() error {
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("X-Request-Id", requestID)
 
+	if e.signer != nil {
+		signature, err := e.signer.CalculateSignature(payload.Bytes())
+		if err != nil {
+			logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during signing", err.Error())
+			return err
+		}
+
+		req.Header.Set("HashSHA256", signature)
+	}
+
 	logRequest(ctx, url, req.Header, body)
 
 	resp, err := e.client.Do(req)
@@ -146,7 +156,8 @@ func (e *MetricsExporter) doSend() error {
 	logResponse(ctx, resp, respBody)
 
 	if resp.StatusCode != http.StatusOK {
-		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reporting stats", resp.Status, string(respBody))
+		formatedBody := strings.ReplaceAll(string(respBody), "\n", "")
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reporting stats", resp.Status, formatedBody)
 		return err
 	}
 

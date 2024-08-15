@@ -27,6 +27,7 @@ type Config struct {
 	StorePath      string           `env:"FILE_STORAGE_PATH"`
 	RestoreOnStart bool             `env:"RESTORE"`
 	DatabaseDSN    string           `env:"DATABASE_DSN"`
+	Secret         entities.Secret  `env:"KEY"`
 }
 
 func New() (*Server, error) {
@@ -49,7 +50,7 @@ func New() (*Server, error) {
 
 	storageService := storage.NewService(dataStorage)
 	pingerService := services.NewPingerService(dataStorage)
-	router := NewRouter(storageService, pingerService)
+	router := NewRouter(storageService, pingerService, config.Secret)
 
 	httpServer := &http.Server{
 		Addr:    config.Address.String(),
@@ -89,6 +90,10 @@ func (s *Server) String() string {
 		str = append(str, fmt.Sprintf("database=%s", s.config.DatabaseDSN))
 	}
 
+	if len(s.config.Secret) > 0 {
+		str = append(str, fmt.Sprintf("secret=%s", s.config.Secret))
+	}
+
 	return "server config: " + strings.Join(str, "; ")
 }
 
@@ -112,11 +117,14 @@ func parseFlags(config *Config, progname string, args []string) error {
 	address := config.Address
 	flags.VarP(&address, "address", "a", "address:port for HTTP API requests")
 
+	secret := config.Secret
+	flags.VarP(&secret, "secret", "k", "a key to sign outgoing data")
+
 	// define flags
-	storeInterval := flags.IntP("store-interval", "i", config.StoreInterval, "interval (s) for dumping metrics to the disk, zero value means saving after each request")
-	storePath := flags.StringP("store-file", "f", config.StorePath, "path to file to store metrics")
-	restoreOnStart := flags.BoolP("restore", "r", config.RestoreOnStart, "whether to restore state on startup")
-	databaseDSN := flags.StringP("database", "d", config.DatabaseDSN, "PostgreSQL database DSN")
+	flags.IntVarP(&config.StoreInterval, "store-interval", "i", config.StoreInterval, "interval (s) for dumping metrics to the disk, zero value means saving after each request")
+	flags.StringVarP(&config.StorePath, "store-file", "f", config.StorePath, "path to file to store metrics")
+	flags.BoolVarP(&config.RestoreOnStart, "restore", "r", config.RestoreOnStart, "whether to restore state on startup")
+	flags.StringVarP(&config.DatabaseDSN, "database", "d", config.DatabaseDSN, "PostgreSQL database DSN")
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -128,14 +136,8 @@ func parseFlags(config *Config, progname string, args []string) error {
 		switch f.Name {
 		case "address":
 			config.Address = address
-		case "store-interval":
-			config.StoreInterval = *storeInterval
-		case "store-file":
-			config.StorePath = *storePath
-		case "restore":
-			config.RestoreOnStart = *restoreOnStart
-		case "database":
-			config.DatabaseDSN = *databaseDSN
+		case "secret":
+			config.Secret = secret
 		}
 	})
 

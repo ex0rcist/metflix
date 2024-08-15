@@ -2,12 +2,15 @@ package agent
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/spf13/pflag"
 )
@@ -24,6 +27,7 @@ type Config struct {
 	Address        entities.Address `env:"ADDRESS"`
 	PollInterval   int              `env:"POLL_INTERVAL"`
 	ReportInterval int              `env:"REPORT_INTERVAL"`
+	Secret         entities.Secret  `env:"KEY"`
 }
 
 func New() (*Agent, error) {
@@ -33,39 +37,23 @@ func New() (*Agent, error) {
 		ReportInterval: 10,
 	}
 
-	stats := NewStats()
-	exporter := NewMetricsExporter(&config.Address, nil)
+	err := parseConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	var signer services.Signer
+	if len(config.Secret) > 0 {
+		signer = services.NewSignerService(config.Secret)
+	}
+
+	exporter := NewMetricsExporter(&config.Address, http.DefaultTransport, signer)
 
 	return &Agent{
 		Config:   config,
-		Stats:    stats,
+		Stats:    NewStats(),
 		Exporter: exporter,
 	}, nil
-}
-
-func (a *Agent) ParseFlags() error {
-	address := a.Config.Address
-
-	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
-
-	pflag.IntVarP(&a.Config.PollInterval, "poll-interval", "p", a.Config.PollInterval, "interval (s) for polling stats")
-	pflag.IntVarP(&a.Config.ReportInterval, "report-interval", "r", a.Config.ReportInterval, "interval (s) for polling stats")
-
-	pflag.Parse()
-
-	// because VarP gets non-pointer value, set it manually
-	pflag.Visit(func(f *pflag.Flag) {
-		switch f.Name {
-		case "address":
-			a.Config.Address = address
-		}
-	})
-
-	if err := env.Parse(a.Config); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (a *Agent) Run() {
@@ -156,8 +144,45 @@ func (a *Agent) reportStats() {
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf(
-		"agent config: address=%v; poll-interval=%v; report-interval=%v",
-		c.Address, c.PollInterval, c.ReportInterval,
-	)
+
+	str := []string{
+		fmt.Sprintf("address=%s", c.Address),
+		fmt.Sprintf("poll-interval=%v", c.PollInterval),
+		fmt.Sprintf("report-interval=%v", c.ReportInterval),
+	}
+
+	if len(c.Secret) > 0 {
+		str = append(str, fmt.Sprintf("secret=%v", c.Secret))
+	}
+
+	return "agent config: " + strings.Join(str, "; ")
+}
+
+func parseConfig(config *Config) error {
+	address := config.Address
+	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
+
+	secret := config.Secret
+	pflag.VarP(&secret, "secret", "k", "a key to sign outgoing data")
+
+	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
+	pflag.IntVarP(&config.ReportInterval, "report-interval", "r", config.ReportInterval, "interval (s) for polling stats")
+
+	pflag.Parse()
+
+	// because VarP gets non-pointer value, set it manually
+	pflag.Visit(func(f *pflag.Flag) {
+		switch f.Name {
+		case "address":
+			config.Address = address
+		case "secret":
+			config.Secret = secret
+		}
+	})
+
+	if err := env.Parse(config); err != nil {
+		return err
+	}
+
+	return nil
 }

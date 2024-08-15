@@ -6,6 +6,7 @@ import (
 	chimdlw "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 
+	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/middleware"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
@@ -14,6 +15,7 @@ import (
 func NewRouter(
 	storageService storage.StorageService,
 	pingerService services.Pinger,
+	secret entities.Secret,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -21,8 +23,17 @@ func NewRouter(
 	router.Use(chimdlw.StripSlashes)
 
 	router.Use(middleware.RequestsLogger)
+
+	router.Use(func(next http.Handler) http.Handler {
+		return middleware.CheckSignedRequest(next, secret)
+	})
+
 	router.Use(middleware.DecompressRequest)
 	router.Use(middleware.CompressResponse)
+
+	router.Use(func(next http.Handler) http.Handler {
+		return middleware.SignResponse(next, secret)
+	})
 
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound) // no default body

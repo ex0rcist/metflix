@@ -25,6 +25,8 @@ var (
 	ErrEncodingInternal    = errors.New("internal encoding error")
 	ErrEncodingUnsupported = errors.New("requsted encoding is not supported")
 
+	ErrNoSignature = errors.New("no signature provided")
+
 	ErrUnexpected = errors.New("unexpected error")
 )
 
