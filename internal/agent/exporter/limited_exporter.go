@@ -1,7 +1,6 @@
-package agent
+package exporter
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,39 +14,38 @@ import (
 	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
-	"github.com/rs/zerolog/log"
 )
 
-type Exporter interface {
-	Add(name string, value metrics.Metric) Exporter
-	Send() error
-	Error() error
-	Reset()
-}
+var _ Exporter = (*LimitedExporter)(nil)
 
-type MetricsExporter struct {
+type LimitedExporter struct {
 	baseURL *entities.Address
 	client  *http.Client
 	signer  services.Signer
 
 	buffer []metrics.MetricExchange
+	jobs   chan metrics.MetricExchange
 	err    error
 }
 
-func NewMetricsExporter(baseURL *entities.Address, httpTransport http.RoundTripper, signer services.Signer) *MetricsExporter {
+func NewLimitedExporter(baseURL *entities.Address, signer services.Signer, numWorkers int) *LimitedExporter {
 	client := &http.Client{
-		Timeout:   2 * time.Second,
-		Transport: httpTransport,
+		Timeout: 2 * time.Second,
 	}
 
-	return &MetricsExporter{
+	exporter := &LimitedExporter{
 		baseURL: baseURL,
 		client:  client,
 		signer:  signer,
+		jobs:    make(chan metrics.MetricExchange, 30),
 	}
+
+	exporter.spawnWorkers(numWorkers)
+
+	return exporter
 }
 
-func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
+func (e *LimitedExporter) Add(name string, value metrics.Metric) Exporter {
 	if e.err != nil {
 		return e
 	}
@@ -61,6 +59,8 @@ func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
 		mex = metrics.NewUpdateGaugeMex(name, value.(metrics.Gauge))
 
 	default:
+		logging.LogError(entities.ErrMetricReport, "unknown metric")
+
 		e.err = entities.ErrMetricUnknown
 		return e
 	}
@@ -70,11 +70,7 @@ func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
 	return e
 }
 
-// NB: реализовано с попытками ретраев через 1, 3, 5 сек согласно ТЗ
-// imho с учетом реализации метрик на сервере, здесь в повторных ретраях нет никакого смысла
-// горутина выполняющая эту функцию будет дожидаться окончания .Do(),
-// пока другая горутина в фоне собирает новые метрики
-func (e *MetricsExporter) Send() error {
+func (e *LimitedExporter) Send() error {
 	if e.err != nil {
 		return e.err
 	}
@@ -83,29 +79,66 @@ func (e *MetricsExporter) Send() error {
 		return fmt.Errorf("cannot send empty buffer")
 	}
 
-	err := utils.NewRetrier(
-		func() error { return e.doSend() },
-		func(err error) bool {
-			_, ok := err.(entities.RetriableError)
-			return ok
-		},
-		[]time.Duration{
-			1 * time.Second,
-			3 * time.Second,
-			5 * time.Second,
-		},
-	).Run()
+	logging.LogDebugF("sending %d jobs to channel", len(e.buffer))
+
+	for _, mex := range e.buffer {
+		e.jobs <- mex
+	}
 
 	e.Reset()
 
-	return err
+	return nil
 }
 
-func (e *MetricsExporter) doSend() error {
+func (e *LimitedExporter) Reset() {
+	e.buffer = make([]metrics.MetricExchange, 0)
+	e.err = nil
+}
+
+func (e *LimitedExporter) Error() error {
+	if e.err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("metrics export failed: %w", e.err)
+}
+
+func (e *LimitedExporter) spawnWorkers(numWorkers int) {
+	for w := 1; w <= numWorkers; w++ {
+		go e.worker(w)
+	}
+}
+
+func (e *LimitedExporter) worker(id int) {
+	for mex := range e.jobs {
+		logging.LogDebugF("worker #%d started job", id)
+
+		err := utils.NewRetrier(
+			func() error { return e.doSend(mex) },
+			func(err error) bool {
+				_, ok := err.(entities.RetriableError)
+				return ok
+			},
+			[]time.Duration{
+				1 * time.Second,
+				3 * time.Second,
+				5 * time.Second,
+			},
+		).Run()
+
+		if err != nil {
+			logging.LogError(err, "error during async working")
+		}
+
+		logging.LogDebugF("worker #%d ended job", id)
+	}
+}
+
+func (e *LimitedExporter) doSend(mex metrics.MetricExchange) error {
 	requestID := utils.GenerateRequestID()
 	ctx := setupLoggerCtx(requestID)
 
-	body, err := json.Marshal(e.buffer)
+	body, err := json.Marshal(mex)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during marshaling", err.Error())
 		return err
@@ -117,7 +150,8 @@ func (e *MetricsExporter) doSend() error {
 		return err
 	}
 
-	url := "http://" + e.baseURL.String() + "/updates"
+	url := "http://" + e.baseURL.String() + "/update"
+
 	req, err := http.NewRequest(http.MethodPost, url, payload)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "httpRequest error", err.Error())
@@ -162,37 +196,4 @@ func (e *MetricsExporter) doSend() error {
 	}
 
 	return nil
-}
-
-func (e *MetricsExporter) Reset() {
-	e.buffer = make([]metrics.MetricExchange, 0)
-	e.err = nil
-}
-
-func (e *MetricsExporter) Error() error {
-	if e.err == nil {
-		return nil
-	}
-
-	return fmt.Errorf("metrics export failed: %w", e.err)
-}
-
-func setupLoggerCtx(requestID string) context.Context {
-	// empty context for now
-	ctx := context.Background()
-
-	// setup logger with rid attached
-	logger := log.Logger.With().Ctx(ctx).Str("rid", requestID).Logger()
-
-	// return context for logging
-	return logger.WithContext(ctx)
-}
-
-func logRequest(ctx context.Context, url string, headers http.Header, body []byte) {
-	logging.LogInfoCtx(ctx, "sending request to: "+url)
-	logging.LogDebugCtx(ctx, fmt.Sprintf("request: headers=%s; body=%s", utils.HeadersToStr(headers), string(body)))
-}
-
-func logResponse(ctx context.Context, resp *http.Response, respBody []byte) {
-	logging.LogDebugCtx(ctx, fmt.Sprintf("response: %v; headers=%s; body=%s", resp.Status, utils.HeadersToStr(resp.Header), respBody))
 }

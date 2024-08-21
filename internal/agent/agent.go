@@ -1,13 +1,14 @@
 package agent
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/ex0rcist/metflix/internal/agent/exporter"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/services"
@@ -18,7 +19,7 @@ import (
 type Agent struct {
 	Config   *Config
 	Stats    *Stats
-	Exporter Exporter
+	Exporter exporter.Exporter
 
 	wg sync.WaitGroup
 }
@@ -27,6 +28,7 @@ type Config struct {
 	Address        entities.Address `env:"ADDRESS"`
 	PollInterval   int              `env:"POLL_INTERVAL"`
 	ReportInterval int              `env:"REPORT_INTERVAL"`
+	RateLimit      int              `env:"RATE_LIMIT"`
 	Secret         entities.Secret  `env:"KEY"`
 }
 
@@ -35,6 +37,7 @@ func New() (*Agent, error) {
 		Address:        "0.0.0.0:8080",
 		PollInterval:   2,
 		ReportInterval: 10,
+		RateLimit:      -1,
 	}
 
 	err := parseConfig(config)
@@ -42,12 +45,10 @@ func New() (*Agent, error) {
 		return nil, err
 	}
 
-	var signer services.Signer
-	if len(config.Secret) > 0 {
-		signer = services.NewSignerService(config.Secret)
+	exporter, err := newMetricsExporter(config)
+	if err != nil {
+		return nil, err
 	}
-
-	exporter := NewMetricsExporter(&config.Address, http.DefaultTransport, signer)
 
 	return &Agent{
 		Config:   config,
@@ -60,19 +61,21 @@ func (a *Agent) Run() {
 	logging.LogInfo(a.Config.String())
 	logging.LogInfo("agent ready")
 
+	ctx := context.Background()
+
 	a.wg.Add(2)
 
-	go a.startPolling()
+	go a.startPolling(ctx)
 	go a.startReporting()
 
 	a.wg.Wait()
 }
 
-func (a *Agent) startPolling() {
+func (a *Agent) startPolling(ctx context.Context) {
 	defer a.wg.Done()
 
 	for {
-		err := a.Stats.Poll()
+		err := a.Stats.Poll(ctx)
 		if err != nil {
 			logging.LogError(err)
 		}
@@ -132,6 +135,14 @@ func (a *Agent) reportStats() {
 	a.Exporter.
 		Add("PollCount", snapshot.PollCount)
 
+	a.Exporter.
+		Add("FreeMemory", snapshot.System.FreeMemory).
+		Add("TotalMemory", snapshot.System.TotalMemory)
+
+	for i, u := range snapshot.System.CPUutilization {
+		a.Exporter.Add(fmt.Sprintf("CPUutilization%d", i+1), u)
+	}
+
 	err := a.Exporter.Send()
 	if err != nil {
 		logging.LogErrorF("error sending metrics: %w", err)
@@ -144,11 +155,11 @@ func (a *Agent) reportStats() {
 }
 
 func (c Config) String() string {
-
 	str := []string{
 		fmt.Sprintf("address=%s", c.Address),
 		fmt.Sprintf("poll-interval=%v", c.PollInterval),
 		fmt.Sprintf("report-interval=%v", c.ReportInterval),
+		fmt.Sprintf("rate-limit=%v", c.RateLimit),
 	}
 
 	if len(c.Secret) > 0 {
@@ -156,6 +167,42 @@ func (c Config) String() string {
 	}
 
 	return "agent config: " + strings.Join(str, "; ")
+}
+
+func detectExporterKind(c *Config) string {
+	var ek string
+
+	switch {
+	case c.RateLimit > 0:
+		ek = exporter.KindLimited
+	default:
+		ek = exporter.KindBatch
+	}
+
+	return ek
+}
+
+func newMetricsExporter(config *Config) (exporter.Exporter, error) {
+	var exp exporter.Exporter
+	var signer services.Signer
+	var err error
+
+	if len(config.Secret) > 0 {
+		signer = services.NewSignerService(config.Secret)
+	}
+
+	exporterKind := detectExporterKind(config)
+
+	switch exporterKind {
+	case exporter.KindLimited:
+		exp = exporter.NewLimitedExporter(&config.Address, signer, config.RateLimit)
+	case exporter.KindBatch:
+		exp = exporter.NewBatchExporter(&config.Address, signer)
+	default:
+		exp, err = nil, fmt.Errorf("unknown exporter type")
+	}
+
+	return exp, err
 }
 
 func parseConfig(config *Config) error {
@@ -167,6 +214,7 @@ func parseConfig(config *Config) error {
 
 	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&config.ReportInterval, "report-interval", "r", config.ReportInterval, "interval (s) for polling stats")
+	pflag.IntVarP(&config.RateLimit, "rate-limit", "l", config.RateLimit, "number of max simultaneous requests to server")
 
 	pflag.Parse()
 
