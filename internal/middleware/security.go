@@ -31,16 +31,16 @@ func SignResponse(next http.Handler, secret entities.Secret) http.Handler {
 			return
 		}
 
-		// Wrap the ResponseWriter with chi's middleware.WrapResponseWriter
+		// wrap the ResponseWriter with chi's middleware.WrapResponseWriter
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
-		// Create a buffer to capture the response body
+		// create a buffer to capture the response body
 		bodyBuffer := &bytes.Buffer{}
 
-		// Create a custom ResponseWriter to capture the response body
+		// create a custom ResponseWriter to capture the response body
 		crw := &CustomResponseWriter{ResponseWriter: ww, body: bodyBuffer}
 
-		// Pass the custom ResponseWriter to the next handler
+		// pass the custom ResponseWriter to the next handler
 		next.ServeHTTP(crw, r)
 
 		signer := services.NewSignerService(secret)
@@ -48,7 +48,7 @@ func SignResponse(next http.Handler, secret entities.Secret) http.Handler {
 
 		w.Header().Set("HashSHA256", signature)
 
-		// Write the captured body to the original ResponseWriter
+		// write the captured body to the original ResponseWriter
 		_, err := w.Write(bodyBuffer.Bytes())
 		if err != nil {
 			logging.LogErrorCtx(ctx, fmt.Errorf("got empty signature for request"))
@@ -75,8 +75,8 @@ func CheckSignedRequest(next http.Handler, secret entities.Secret) http.Handler 
 
 		hash := r.Header.Get("HashSHA256")
 		if len(hash) == 0 {
-			logging.LogErrorCtx(ctx, fmt.Errorf("got empty signature for request"))
-			http.Error(w, "failed to verify signature", http.StatusBadRequest)
+			// just pass it through for backward compatibility
+			next.ServeHTTP(w, r)
 			return
 		}
 
