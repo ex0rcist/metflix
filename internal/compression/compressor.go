@@ -31,6 +31,7 @@ func NewCompressor(w http.ResponseWriter, ctx context.Context) *Compressor {
 
 func (c *Compressor) Write(resp []byte) (int, error) {
 	contentType := c.Header().Get("Content-Type")
+
 	if _, ok := c.supportedContent[contentType]; !ok {
 		logging.LogDebugCtx(c.context, "compression not supported for "+contentType)
 		return c.ResponseWriter.Write(resp)

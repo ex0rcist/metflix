@@ -15,10 +15,5 @@ func main() {
 		logging.LogFatal(err)
 	}
 
-	err = agnt.ParseFlags()
-	if err != nil {
-		logging.LogFatal(err)
-	}
-
 	agnt.Run()
 }

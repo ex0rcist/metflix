@@ -1,53 +1,45 @@
-package agent
+package exporter
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
-	"github.com/rs/zerolog/log"
 )
 
-type Exporter interface {
-	Add(name string, value metrics.Metric) Exporter
-	Send() error
-	Error() error
-	Reset()
-}
+var _ Exporter = (*BatchExporter)(nil)
 
-type MetricsExporter struct {
+type BatchExporter struct {
 	baseURL *entities.Address
 	client  *http.Client
+	signer  services.Signer
 
 	buffer []metrics.MetricExchange
 	err    error
 }
 
-func NewMetricsExporter(baseURL *entities.Address, httpTransport http.RoundTripper) *MetricsExporter {
-	if httpTransport == nil {
-		httpTransport = http.DefaultTransport
-	}
-
+func NewBatchExporter(baseURL *entities.Address, signer services.Signer) *BatchExporter {
 	client := &http.Client{
-		Timeout:   2 * time.Second,
-		Transport: httpTransport,
+		Timeout: 2 * time.Second,
 	}
 
-	return &MetricsExporter{
+	return &BatchExporter{
 		baseURL: baseURL,
 		client:  client,
+		signer:  signer,
 	}
 }
 
-func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
+func (e *BatchExporter) Add(name string, value metrics.Metric) Exporter {
 	if e.err != nil {
 		return e
 	}
@@ -70,11 +62,7 @@ func (e *MetricsExporter) Add(name string, value metrics.Metric) Exporter {
 	return e
 }
 
-// NB: реализовано с попытками ретраев через 1, 3, 5 сек согласно ТЗ
-// imho с учетом реализации метрик на сервере, здесь в повторных ретраях нет никакого смысла
-// горутина выполняющая эту функцию будет дожидаться окончания .Do(),
-// пока другая горутина в фоне собирает новые метрики
-func (e *MetricsExporter) Send() error {
+func (e *BatchExporter) Send() error {
 	if e.err != nil {
 		return e.err
 	}
@@ -101,7 +89,20 @@ func (e *MetricsExporter) Send() error {
 	return err
 }
 
-func (e *MetricsExporter) doSend() error {
+func (e *BatchExporter) Reset() {
+	e.buffer = make([]metrics.MetricExchange, 0)
+	e.err = nil
+}
+
+func (e *BatchExporter) Error() error {
+	if e.err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("metrics export failed: %w", e.err)
+}
+
+func (e *BatchExporter) doSend() error {
 	requestID := utils.GenerateRequestID()
 	ctx := setupLoggerCtx(requestID)
 
@@ -128,6 +129,16 @@ func (e *MetricsExporter) doSend() error {
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("X-Request-Id", requestID)
 
+	if e.signer != nil {
+		signature, err := e.signer.CalculateSignature(payload.Bytes())
+		if err != nil {
+			logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during signing", err.Error())
+			return err
+		}
+
+		req.Header.Set("HashSHA256", signature)
+	}
+
 	logRequest(ctx, url, req.Header, body)
 
 	resp, err := e.client.Do(req)
@@ -146,42 +157,10 @@ func (e *MetricsExporter) doSend() error {
 	logResponse(ctx, resp, respBody)
 
 	if resp.StatusCode != http.StatusOK {
-		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reporting stats", resp.Status, string(respBody))
+		formatedBody := strings.ReplaceAll(string(respBody), "\n", "")
+		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reporting stats", resp.Status, formatedBody)
 		return err
 	}
 
 	return nil
-}
-
-func (e *MetricsExporter) Reset() {
-	e.buffer = make([]metrics.MetricExchange, 0)
-	e.err = nil
-}
-
-func (e *MetricsExporter) Error() error {
-	if e.err == nil {
-		return nil
-	}
-
-	return fmt.Errorf("metrics export failed: %w", e.err)
-}
-
-func setupLoggerCtx(requestID string) context.Context {
-	// empty context for now
-	ctx := context.Background()
-
-	// setup logger with rid attached
-	logger := log.Logger.With().Ctx(ctx).Str("rid", requestID).Logger()
-
-	// return context for logging
-	return logger.WithContext(ctx)
-}
-
-func logRequest(ctx context.Context, url string, headers http.Header, body []byte) {
-	logging.LogInfoCtx(ctx, "sending request to: "+url)
-	logging.LogDebugCtx(ctx, fmt.Sprintf("request: headers=%s; body=%s", utils.HeadersToStr(headers), string(body)))
-}
-
-func logResponse(ctx context.Context, resp *http.Response, respBody []byte) {
-	logging.LogDebugCtx(ctx, fmt.Sprintf("response: %v; headers=%s; body=%s", resp.Status, utils.HeadersToStr(resp.Header), respBody))
 }

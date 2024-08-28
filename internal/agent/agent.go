@@ -1,13 +1,17 @@
 package agent
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/ex0rcist/metflix/internal/agent/exporter"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/spf13/pflag"
 )
@@ -15,7 +19,7 @@ import (
 type Agent struct {
 	Config   *Config
 	Stats    *Stats
-	Exporter Exporter
+	Exporter exporter.Exporter
 
 	wg sync.WaitGroup
 }
@@ -24,6 +28,8 @@ type Config struct {
 	Address        entities.Address `env:"ADDRESS"`
 	PollInterval   int              `env:"POLL_INTERVAL"`
 	ReportInterval int              `env:"REPORT_INTERVAL"`
+	RateLimit      int              `env:"RATE_LIMIT"`
+	Secret         entities.Secret  `env:"KEY"`
 }
 
 func New() (*Agent, error) {
@@ -31,60 +37,45 @@ func New() (*Agent, error) {
 		Address:        "0.0.0.0:8080",
 		PollInterval:   2,
 		ReportInterval: 10,
+		RateLimit:      -1,
 	}
 
-	stats := NewStats()
-	exporter := NewMetricsExporter(&config.Address, nil)
+	err := parseConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	exporter, err := newMetricsExporter(config)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Agent{
 		Config:   config,
-		Stats:    stats,
+		Stats:    NewStats(),
 		Exporter: exporter,
 	}, nil
-}
-
-func (a *Agent) ParseFlags() error {
-	address := a.Config.Address
-
-	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
-
-	pflag.IntVarP(&a.Config.PollInterval, "poll-interval", "p", a.Config.PollInterval, "interval (s) for polling stats")
-	pflag.IntVarP(&a.Config.ReportInterval, "report-interval", "r", a.Config.ReportInterval, "interval (s) for polling stats")
-
-	pflag.Parse()
-
-	// because VarP gets non-pointer value, set it manually
-	pflag.Visit(func(f *pflag.Flag) {
-		switch f.Name {
-		case "address":
-			a.Config.Address = address
-		}
-	})
-
-	if err := env.Parse(a.Config); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (a *Agent) Run() {
 	logging.LogInfo(a.Config.String())
 	logging.LogInfo("agent ready")
 
+	ctx := context.Background()
+
 	a.wg.Add(2)
 
-	go a.startPolling()
+	go a.startPolling(ctx)
 	go a.startReporting()
 
 	a.wg.Wait()
 }
 
-func (a *Agent) startPolling() {
+func (a *Agent) startPolling(ctx context.Context) {
 	defer a.wg.Done()
 
 	for {
-		err := a.Stats.Poll()
+		err := a.Stats.Poll(ctx)
 		if err != nil {
 			logging.LogError(err)
 		}
@@ -144,6 +135,14 @@ func (a *Agent) reportStats() {
 	a.Exporter.
 		Add("PollCount", snapshot.PollCount)
 
+	a.Exporter.
+		Add("FreeMemory", snapshot.System.FreeMemory).
+		Add("TotalMemory", snapshot.System.TotalMemory)
+
+	for i, u := range snapshot.System.CPUutilization {
+		a.Exporter.Add(fmt.Sprintf("CPUutilization%d", i+1), u)
+	}
+
 	err := a.Exporter.Send()
 	if err != nil {
 		logging.LogErrorF("error sending metrics: %w", err)
@@ -156,8 +155,82 @@ func (a *Agent) reportStats() {
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf(
-		"agent config: address=%v; poll-interval=%v; report-interval=%v",
-		c.Address, c.PollInterval, c.ReportInterval,
-	)
+	str := []string{
+		fmt.Sprintf("address=%s", c.Address),
+		fmt.Sprintf("poll-interval=%v", c.PollInterval),
+		fmt.Sprintf("report-interval=%v", c.ReportInterval),
+		fmt.Sprintf("rate-limit=%v", c.RateLimit),
+	}
+
+	if len(c.Secret) > 0 {
+		str = append(str, fmt.Sprintf("secret=%v", c.Secret))
+	}
+
+	return "agent config: " + strings.Join(str, "; ")
+}
+
+func detectExporterKind(c *Config) string {
+	var ek string
+
+	switch {
+	case c.RateLimit > 0:
+		ek = exporter.KindLimited
+	default:
+		ek = exporter.KindBatch
+	}
+
+	return ek
+}
+
+func newMetricsExporter(config *Config) (exporter.Exporter, error) {
+	var exp exporter.Exporter
+	var signer services.Signer
+	var err error
+
+	if len(config.Secret) > 0 {
+		signer = services.NewSignerService(config.Secret)
+	}
+
+	exporterKind := detectExporterKind(config)
+
+	switch exporterKind {
+	case exporter.KindLimited:
+		exp = exporter.NewLimitedExporter(&config.Address, signer, config.RateLimit)
+	case exporter.KindBatch:
+		exp = exporter.NewBatchExporter(&config.Address, signer)
+	default:
+		exp, err = nil, fmt.Errorf("unknown exporter type")
+	}
+
+	return exp, err
+}
+
+func parseConfig(config *Config) error {
+	address := config.Address
+	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
+
+	secret := config.Secret
+	pflag.VarP(&secret, "secret", "k", "a key to sign outgoing data")
+
+	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
+	pflag.IntVarP(&config.ReportInterval, "report-interval", "r", config.ReportInterval, "interval (s) for polling stats")
+	pflag.IntVarP(&config.RateLimit, "rate-limit", "l", config.RateLimit, "number of max simultaneous requests to server")
+
+	pflag.Parse()
+
+	// because VarP gets non-pointer value, set it manually
+	pflag.Visit(func(f *pflag.Flag) {
+		switch f.Name {
+		case "address":
+			config.Address = address
+		case "secret":
+			config.Secret = secret
+		}
+	})
+
+	if err := env.Parse(config); err != nil {
+		return err
+	}
+
+	return nil
 }
