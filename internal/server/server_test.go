@@ -10,11 +10,11 @@ func TestNew(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if server.Storage == nil {
+	if server.storage == nil {
 		t.Fatal("expected storage to not be nil")
 	}
 
-	if server.Router == nil {
+	if server.router == nil {
 		t.Fatal("expected router to not be nil")
 	}
 }

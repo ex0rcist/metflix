@@ -7,7 +7,6 @@ import (
 
 func main() {
 	logging.Setup()
-
 	logging.LogInfo("starting server...")
 
 	srv, err := server.New()
@@ -15,8 +14,5 @@ func main() {
 		logging.LogFatal(err)
 	}
 
-	err = srv.Run()
-	if err != nil {
-		logging.LogFatal(err)
-	}
+	srv.Start()
 }

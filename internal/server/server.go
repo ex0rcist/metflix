@@ -1,40 +1,52 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/httpserver"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/profiler"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 )
 
+const shutdownTimeout = 60 * time.Second
+
 type Server struct {
 	config     *Config
-	httpServer *http.Server
-	Storage    storage.MetricsStorage
-	Router     http.Handler
+	httpServer *httpserver.Server
+	profiler   *profiler.Profiler
+	storage    storage.MetricsStorage
+	router     http.Handler
 }
 
 type Config struct {
-	Address        entities.Address `env:"ADDRESS"`
-	StoreInterval  int              `env:"STORE_INTERVAL"`
-	StorePath      string           `env:"FILE_STORAGE_PATH"`
-	RestoreOnStart bool             `env:"RESTORE"`
-	DatabaseDSN    string           `env:"DATABASE_DSN"`
-	Secret         entities.Secret  `env:"KEY"`
+	Address         entities.Address `env:"ADDRESS"`
+	StoreInterval   int              `env:"STORE_INTERVAL"`
+	StorePath       string           `env:"FILE_STORAGE_PATH"`
+	RestoreOnStart  bool             `env:"RESTORE"`
+	DatabaseDSN     string           `env:"DATABASE_DSN"`
+	Secret          entities.Secret  `env:"KEY"`
+	ProfilerAddress entities.Address `env:"PROFILER_ADDRESS"`
 }
 
 func New() (*Server, error) {
 	config := &Config{
-		Address:        "0.0.0.0:8080",
-		StoreInterval:  300,
-		RestoreOnStart: true,
+		Address:         "0.0.0.0:8080",
+		StoreInterval:   300,
+		RestoreOnStart:  true,
+		ProfilerAddress: "0.0.0.0:8081",
 	}
 
 	err := parseConfig(config)
@@ -42,34 +54,65 @@ func New() (*Server, error) {
 		return nil, err
 	}
 
-	storageKind := detectStorageKind(config)
-	dataStorage, err := newDataStorage(storageKind, config)
+	dataStorage, err := newDataStorage(config)
 	if err != nil {
 		return nil, err
 	}
 
 	storageService := storage.NewService(dataStorage)
 	pingerService := services.NewPingerService(dataStorage)
-	router := NewRouter(storageService, pingerService, config.Secret)
+	router := httpserver.NewRouter(storageService, pingerService, config.Secret)
 
-	httpServer := &http.Server{
-		Addr:    config.Address.String(),
-		Handler: router,
-	}
+	httpServer := httpserver.New(router, config.Address)
+	pprofiler := profiler.New(config.ProfilerAddress)
 
 	return &Server{
 		config:     config,
 		httpServer: httpServer,
-		Storage:    dataStorage,
-		Router:     router,
+		storage:    dataStorage,
+		router:     router,
+		profiler:   pprofiler,
 	}, nil
 }
 
-func (s *Server) Run() error {
+func (s *Server) Start() {
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	s.httpServer.Start()
+	s.profiler.Start()
+
 	logging.LogInfo(s.String())
 	logging.LogInfo("server ready")
 
-	return s.httpServer.ListenAndServe()
+	select {
+	case s := <-interrupt:
+		logging.LogInfo("interrupt: signal " + s.String())
+	case err := <-s.httpServer.Notify():
+		logging.LogError(err, "Server -> Start() -> s.httpServer.Notify")
+	case err := <-s.profiler.Notify():
+		logging.LogError(err, "Server -> Start() - s.profiler.Notify")
+	}
+
+	logging.LogInfo("shutting down...")
+
+	stopped := make(chan struct{})
+	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	go func() {
+		s.shutdown(stopCtx)
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		log.Info().Msg("server shutdown successful")
+
+	case <-stopCtx.Done():
+		log.Warn().Msgf("shutdown timeout exceeded")
+	}
+
 }
 
 func (s *Server) String() string {
@@ -95,6 +138,23 @@ func (s *Server) String() string {
 	}
 
 	return "server config: " + strings.Join(str, "; ")
+}
+
+func (s *Server) shutdown(ctx context.Context) {
+	logging.LogInfo("shutting down HTTP API")
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		logging.LogError(err)
+	}
+
+	logging.LogInfo("shutting down storage")
+	if err := s.storage.Close(ctx); err != nil {
+		logging.LogError(err)
+	}
+
+	logging.LogInfo("shutting down profiler")
+	if err := s.profiler.Shutdown(ctx); err != nil {
+		logging.LogError(err)
+	}
 }
 
 func parseConfig(config *Config) error {
@@ -167,8 +227,10 @@ func detectStorageKind(c *Config) string {
 	return sk
 }
 
-func newDataStorage(kind string, config *Config) (storage.MetricsStorage, error) {
-	switch kind {
+func newDataStorage(config *Config) (storage.MetricsStorage, error) {
+	storageKind := detectStorageKind(config)
+
+	switch storageKind {
 	case storage.KindMemory:
 		return storage.NewMemStorage(), nil
 	case storage.KindFile:
