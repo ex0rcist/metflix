@@ -1,28 +1,51 @@
 package profiler
 
 import (
-	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/ex0rcist/metflix/internal/httpserver"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-
-	_ "net/http/pprof"
+	"fmt"
+	"os"
+	"runtime"
+	"runtime/pprof"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type Profiler struct {
-	*httpserver.Server
+	callCounter int32
 }
 
-func New(address entities.Address) *Profiler {
-	r := chi.NewRouter()
+var (
+	profilerInstance *Profiler
+	once             sync.Once
+)
 
-	r.Use(middleware.Logger)
-	r.Mount("/debug", middleware.Profiler())
+func GetProfiler() *Profiler {
+	once.Do(func() {
+		profilerInstance = &Profiler{}
+	})
+	return profilerInstance
+}
 
-	// tweak memory profiling rate to spot more allocations.
-	// runtime.MemProfileRate = 2048
+func (p *Profiler) SaveMemoryProfile() {
+	count := atomic.AddInt32(&p.callCounter, 1)
 
-	server := httpserver.New(r, address)
+	if count != 3 {
+		return
+	}
 
-	return &Profiler{server}
+	timestamp := time.Now().Format("20060102-150405")
+	fileName := fmt.Sprintf("./memory_profile_%s.prof", timestamp)
+
+	f, err := os.Create(fileName)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	runtime.GC()
+	if err := pprof.WriteHeapProfile(f); err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Memory profile saved as %s\n", fileName)
 }

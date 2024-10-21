@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 // Common interface for service layer

@@ -1,7 +1,24 @@
+// Package httpserver implements REST API for metrics collector server.
 package httpserver
+
+// @Title Metrics collector API
+// @Description Service for storing metrics data.
+// @Version 1.0
+
+// @Contact.name  Evgeniy Shuvalov
+// @Contact.email evshuvalov@yandex.ru
+
+// @Tag.name Metrics
+// @Tag.description "Metrics API"
+
+// @Tag.name Healthcheck
+// @Tag.description "API to inspect service health state"
 
 import (
 	"net/http"
+
+	_ "github.com/ex0rcist/metflix/docs/api"
+	httpSwagger "github.com/swaggo/http-swagger"
 
 	chimdlw "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
@@ -38,6 +55,8 @@ func NewRouter(
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound) // no default body
 	}))
+
+	router.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	registerMetricsEndpoints(storageService, router)
 	registerPingerEndpoint(pingerService, router)

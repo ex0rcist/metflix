@@ -11,9 +11,9 @@ import (
 	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 var _ Exporter = (*LimitedExporter)(nil)

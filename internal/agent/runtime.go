@@ -3,7 +3,7 @@ package agent
 import (
 	"runtime"
 
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 type RuntimeStats struct {

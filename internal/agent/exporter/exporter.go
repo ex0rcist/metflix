@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/utils"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 
 	"github.com/rs/zerolog/log"
 )

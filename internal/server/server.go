@@ -14,10 +14,8 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/httpserver"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/profiler"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 )
 
@@ -26,7 +24,7 @@ const shutdownTimeout = 60 * time.Second
 type Server struct {
 	config     *Config
 	httpServer *httpserver.Server
-	profiler   *profiler.Profiler
+	profiler   *ProfilerServer
 	storage    storage.MetricsStorage
 	router     http.Handler
 }
@@ -64,7 +62,7 @@ func New() (*Server, error) {
 	router := httpserver.NewRouter(storageService, pingerService, config.Secret)
 
 	httpServer := httpserver.New(router, config.Address)
-	pprofiler := profiler.New(config.ProfilerAddress)
+	pprofiler := NewProfilerServer(config.ProfilerAddress)
 
 	return &Server{
 		config:     config,
@@ -107,12 +105,11 @@ func (s *Server) Start() {
 
 	select {
 	case <-stopped:
-		log.Info().Msg("server shutdown successful")
+		logging.LogInfo("server shutdown successful")
 
 	case <-stopCtx.Done():
-		log.Warn().Msgf("shutdown timeout exceeded")
+		logging.LogInfo("shutdown timeout exceeded")
 	}
-
 }
 
 func (s *Server) String() string {

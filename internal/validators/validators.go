@@ -4,7 +4,7 @@ import (
 	"regexp"
 
 	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 var nameRegexp = regexp.MustCompile(`^[A-Za-z\d]+$`)

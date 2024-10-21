@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 func checkNoError(t *testing.T, err error, msg string) {

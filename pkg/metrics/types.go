@@ -6,6 +6,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 )
 
+// Available metric types.
 const (
 	KindCounter = "counter"
 	KindGauge   = "gauge"
@@ -16,6 +17,7 @@ type Metric interface {
 	String() string
 }
 
+// Gauge metric type - int64.
 type Counter int64
 
 func (c Counter) Kind() string {
@@ -26,6 +28,7 @@ func (c Counter) String() string {
 	return strconv.FormatInt(int64(c), 10)
 }
 
+// Gauge metric type - float64.
 type Gauge float64
 
 func (g Gauge) Kind() string {
@@ -60,20 +63,4 @@ type MetricExchange struct {
 	MType string   `json:"type"`
 	Delta *Counter `json:"delta,omitempty"`
 	Value *Gauge   `json:"value,omitempty"`
-}
-
-func NewUpdateCounterMex(name string, value Counter) MetricExchange {
-	return MetricExchange{ID: name, MType: value.Kind(), Delta: &value}
-}
-
-func NewUpdateGaugeMex(name string, value Gauge) MetricExchange {
-	return MetricExchange{ID: name, MType: value.Kind(), Value: &value}
-}
-
-func NewGetCounterMex(name string) MetricExchange {
-	return MetricExchange{ID: name, MType: KindCounter}
-}
-
-func NewGetGaugeMex(name string) MetricExchange {
-	return MetricExchange{ID: name, MType: KindGauge}
 }
