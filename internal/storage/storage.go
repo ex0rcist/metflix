@@ -3,8 +3,11 @@ package storage
 import "context"
 
 const (
-	KindMemory   = "memory"
-	KindFile     = "file"
+	// in-memory storage
+	KindMemory = "memory"
+	// file-backed storage
+	KindFile = "file"
+	// database storage
 	KindDatabase = "database"
 )
 
