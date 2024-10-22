@@ -2,12 +2,37 @@ package middleware
 
 import (
 	"bytes"
-	"compress/gzip"
+
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/klauspost/compress/gzip"
 )
+
+func benchFn(data []byte) {
+	// data := []byte("test data")
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(data)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	rr := httptest.NewRecorder()
+	handler := CompressResponse(nextHandler)
+	handler.ServeHTTP(rr, req)
+}
+
+func BenchmarkCompression(b *testing.B) {
+	payload := []byte("test data")
+	for i := 0; i < b.N; i++ {
+		benchFn(payload)
+	}
+}
 
 func TestDecompressRequest_Success(t *testing.T) {
 	data := []byte("test data")

@@ -2,8 +2,9 @@ package compression
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
+
+	"github.com/klauspost/compress/gzip"
 )
 
 func Pack(data []byte) (*bytes.Buffer, error) {

@@ -1424,8 +1424,9 @@ func (s *SystemStats) Poll(ctx context.Context) error <span class="cov4" title="
 
 import (
         "bytes"
-        "compress/gzip"
         "fmt"
+
+        "github.com/klauspost/compress/gzip"
 )
 
 func Pack(data []byte) (*bytes.Buffer, error) <span class="cov8" title="1">{
@@ -1451,9 +1452,10 @@ func Pack(data []byte) (*bytes.Buffer, error) <span class="cov8" title="1">{
 		<pre class="file" id="file11" style="display: none">package compression
 
 import (
-        "compress/gzip"
         "context"
         "net/http"
+
+        "github.com/klauspost/compress/gzip"
 
         "github.com/ex0rcist/metflix/internal/logging"
 )

@@ -2,9 +2,10 @@ package compression
 
 import (
 	"bytes"
-	"compress/gzip"
 	"io"
 	"testing"
+
+	"github.com/klauspost/compress/gzip"
 )
 
 func TestPack_Success(t *testing.T) {

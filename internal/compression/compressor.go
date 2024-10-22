@@ -1,9 +1,10 @@
 package compression
 
 import (
-	"compress/gzip"
 	"context"
 	"net/http"
+
+	"github.com/klauspost/compress/gzip"
 
 	"github.com/ex0rcist/metflix/internal/logging"
 )
