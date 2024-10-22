@@ -1,4 +1,4 @@
-package server
+package httpserver
 
 import (
 	"context"
@@ -10,16 +10,19 @@ import (
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/internal/profiler"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/ex0rcist/metflix/internal/validators"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
+// Resource to handle routes.
 type MetricResource struct {
 	storageService storage.StorageService
 }
 
+// Constructor.
 func NewMetricResource(storageService storage.StorageService) MetricResource {
 	return MetricResource{
 		storageService: storageService,
@@ -32,6 +35,14 @@ func writeErrorResponse(ctx context.Context, w http.ResponseWriter, code int, er
 	w.WriteHeader(code) // only header for now
 }
 
+// Homepage godoc
+// @Tags Metrics
+// @Router / [get]
+// @Summary Yet another homepage
+// @ID homepage
+// @Produce text/html
+// @Success 200 {string} string
+// @Failure 500 {string} string http.StatusInternalServerError
 func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -58,6 +69,18 @@ func (r MetricResource) Homepage(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// UpdateMetric godoc
+// @Tags Metrics
+// @Router /update/{type}/{name}/{value} [post]
+// @Summary Push metric data.
+// @ID metrics_update
+// @Produce plain
+// @Param type path string true "Metrics type (e.g. `counter`, `gauge`)."
+// @Param name path string true "Metrics name."
+// @Param value path string true "Metrics value, must be convertable to `int64` or `float64`."
+// @Success 200 {string} string
+// @Failure 400 {string} string http.StatusBadRequest
+// @Failure 500 {string} string http.StatusInternalServerError
 func (r MetricResource) UpdateMetric(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -107,6 +130,16 @@ func (r MetricResource) UpdateMetric(rw http.ResponseWriter, req *http.Request) 
 	}
 }
 
+// UpdateMetricJSON godoc
+// @Tags Metrics
+// @Router /update [post]
+// @Summary Push metric data as JSON
+// @ID metrics_json_update
+// @Accept  json
+// @Param request body metrics.MetricExchange true "Request parameters."
+// @Success 200 {object} metrics.MetricExchange
+// @Failure 400 {string} string http.StatusBadRequest
+// @Failure 500 {string} string http.StatusInternalServerError
 func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -146,6 +179,16 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 	}
 }
 
+// BatchUpdateMetricsJSON godoc
+// @Tags Metrics
+// @Router /updates [post]
+// @Summary Push list of metrics data as JSON
+// @ID metrics_json_update_list
+// @Accept  json
+// @Param request body []metrics.MetricExchange true "List of metrics to update."
+// @Success 200 {object} []metrics.MetricExchange
+// @Failure 400 {string} string http.StatusBadRequest
+// @Failure 500 {string} string http.StatusInternalServerError
 func (r MetricResource) BatchUpdateMetricsJSON(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -177,8 +220,22 @@ func (r MetricResource) BatchUpdateMetricsJSON(rw http.ResponseWriter, req *http
 		writeErrorResponse(ctx, rw, http.StatusInternalServerError, err)
 		return
 	}
+
+	profiler.GetProfiler().SaveMemoryProfile()
 }
 
+// GetMetric godoc
+// @Tags Metrics
+// @Router /value/{type}/{name} [get]
+// @Summary Get metric's value as string
+// @ID metrics_info
+// @Produce plain
+// @Param type path string true "Metrics type (e.g. `counter`, `gauge`)."
+// @Param name path string true "Metrics name."
+// @Success 200 {string} string
+// @Failure 400 {string} string http.StatusBadRequest
+// @Failure 404 {string} string http.StatusNotFound
+// @Failure 500 {string} string http.StatusInternalServerError
 func (r MetricResource) GetMetric(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -208,6 +265,18 @@ func (r MetricResource) GetMetric(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// GetMetricJSON godoc
+// @Tags Metrics
+// @Router /value [post]
+// @Summary Get metrics value as JSON
+// @ID metrics_json_info
+// @Accept  json
+// @Produce json
+// @Param request body metrics.MetricExchange true "Request parameters: `id` and `type` are required."
+// @Success 200 {object} metrics.MetricExchange
+// @Failure 400 {string} string http.StatusBadRequest
+// @Failure 404 {string} string http.StatusNotFound
+// @Failure 500 {string} string http.StatusInternalServerError
 func (r MetricResource) GetMetricJSON(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -266,16 +335,26 @@ func parseJSONMetricsList(r *http.Request) ([]storage.Record, error) {
 	return records, nil
 }
 
+// Resource to handle ping requests
 type PingerResource struct {
 	pinger services.Pinger
 }
 
+// Constructor
 func NewPingerResource(pinger services.Pinger) PingerResource {
 	return PingerResource{
 		pinger: pinger,
 	}
 }
 
+// Ping godoc
+// @Tags Healthcheck
+// @Router /ping [get]
+// @Summary Verify server up and running
+// @ID health_info
+// @Success 200
+// @Failure 500 {string} string http.StatusInternalServerError
+// @Failure 501 {string} string http.StatusNotImplemented
 func (pr PingerResource) Ping(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

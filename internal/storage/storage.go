@@ -2,13 +2,14 @@ package storage
 
 import "context"
 
+// Kinds of storage
 const (
 	KindMemory   = "memory"
 	KindFile     = "file"
 	KindDatabase = "database"
 )
 
-// common interface for storages: mem, file, etc
+// Common interface for storages: mem, file, db
 type MetricsStorage interface {
 	Push(ctx context.Context, id string, record Record) error
 	PushList(ctx context.Context, data map[string]Record) error

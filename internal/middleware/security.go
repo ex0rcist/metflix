@@ -18,10 +18,12 @@ type CustomResponseWriter struct {
 	body *bytes.Buffer
 }
 
+// Write body
 func (w *CustomResponseWriter) Write(b []byte) (int, error) {
 	return w.body.Write(b)
 }
 
+// Sign response middleware
 func SignResponse(next http.Handler, secret entities.Secret) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -57,6 +59,7 @@ func SignResponse(next http.Handler, secret entities.Secret) http.Handler {
 	})
 }
 
+// Ensure incoming request satisfies it's signature.
 func CheckSignedRequest(next http.Handler, secret entities.Secret) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

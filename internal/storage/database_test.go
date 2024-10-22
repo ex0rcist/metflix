@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/stretchr/testify/assert"

@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Metric collecting agent (mr. Bond?).
 type Agent struct {
 	Config   *Config
 	Stats    *Stats
@@ -24,6 +25,7 @@ type Agent struct {
 	wg sync.WaitGroup
 }
 
+// Agent config.
 type Config struct {
 	Address        entities.Address `env:"ADDRESS"`
 	PollInterval   int              `env:"POLL_INTERVAL"`
@@ -32,6 +34,7 @@ type Config struct {
 	Secret         entities.Secret  `env:"KEY"`
 }
 
+// Constructor.
 func New() (*Agent, error) {
 	config := &Config{
 		Address:        "0.0.0.0:8080",
@@ -57,6 +60,7 @@ func New() (*Agent, error) {
 	}, nil
 }
 
+// Run agent.
 func (a *Agent) Run() {
 	logging.LogInfo(a.Config.String())
 	logging.LogInfo("agent ready")
@@ -154,6 +158,7 @@ func (a *Agent) reportStats() {
 	a.Stats.PollCount -= snapshot.PollCount
 }
 
+// Stringer.
 func (c Config) String() string {
 	str := []string{
 		fmt.Sprintf("address=%s", c.Address),

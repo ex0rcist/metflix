@@ -4,11 +4,12 @@ import (
 	"regexp"
 
 	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 var nameRegexp = regexp.MustCompile(`^[A-Za-z\d]+$`)
 
+// Ensure metric is valid
 func ValidateMetric(name, kind string) error {
 	if err := validateMetricName(name); err != nil {
 		return err

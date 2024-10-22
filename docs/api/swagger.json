@@ -1,0 +1,348 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Service for storing metrics data.",
+        "title": "Metrics collector API",
+        "contact": {
+            "name": "Evgeniy Shuvalov",
+            "email": "evshuvalov@yandex.ru"
+        },
+        "version": "1.0"
+    },
+    "paths": {
+        "/": {
+            "get": {
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Metrics"
+                ],
+                "summary": "Yet another homepage",
+                "operationId": "homepage",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/ping": {
+            "get": {
+                "tags": [
+                    "Healthcheck"
+                ],
+                "summary": "Verify server up and running",
+                "operationId": "health_info",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/update": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Metrics"
+                ],
+                "summary": "Push metric data as JSON",
+                "operationId": "metrics_json_update",
+                "parameters": [
+                    {
+                        "description": "Request parameters.",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/metrics.MetricExchange"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/metrics.MetricExchange"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/update/{type}/{name}/{value}": {
+            "post": {
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "Metrics"
+                ],
+                "summary": "Push metric data.",
+                "operationId": "metrics_update",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Metrics type (e.g. `counter`, `gauge`).",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metrics name.",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metrics value, must be convertable to `int64` or `float64`.",
+                        "name": "value",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/updates": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Metrics"
+                ],
+                "summary": "Push list of metrics data as JSON",
+                "operationId": "metrics_json_update_list",
+                "parameters": [
+                    {
+                        "description": "List of metrics to update.",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/metrics.MetricExchange"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/metrics.MetricExchange"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/value": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Metrics"
+                ],
+                "summary": "Get metrics value as JSON",
+                "operationId": "metrics_json_info",
+                "parameters": [
+                    {
+                        "description": "Request parameters: `id` and `type` are required.",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/metrics.MetricExchange"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/metrics.MetricExchange"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/value/{type}/{name}": {
+            "get": {
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "Metrics"
+                ],
+                "summary": "Get metric's value as string",
+                "operationId": "metrics_info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Metrics type (e.g. `counter`, `gauge`).",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metrics name.",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "metrics.MetricExchange": {
+            "type": "object",
+            "properties": {
+                "delta": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "number"
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "description": "\"Metrics API\"",
+            "name": "Metrics"
+        },
+        {
+            "description": "\"API to inspect service health state\"",
+            "name": "Healthcheck"
+        }
+    ]
+}

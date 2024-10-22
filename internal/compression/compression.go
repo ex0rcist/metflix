@@ -2,10 +2,12 @@ package compression
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
+
+	"github.com/klauspost/compress/gzip"
 )
 
+// Pack []byte with gzip.
 func Pack(data []byte) (*bytes.Buffer, error) {
 	bb := new(bytes.Buffer)
 

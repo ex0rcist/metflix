@@ -2,10 +2,11 @@ package compression
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/klauspost/compress/gzip"
 )
 
 func TestCompressor_Write_SupportedContent(t *testing.T) {

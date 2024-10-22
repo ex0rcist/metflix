@@ -11,13 +11,14 @@ import (
 	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 var _ Exporter = (*LimitedExporter)(nil)
 
+// An exporter to send metrics one-by-one in parallel.
 type LimitedExporter struct {
 	baseURL *entities.Address
 	client  *http.Client
@@ -28,6 +29,7 @@ type LimitedExporter struct {
 	err    error
 }
 
+// Constructor.
 func NewLimitedExporter(baseURL *entities.Address, signer services.Signer, numWorkers int) *LimitedExporter {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
@@ -45,6 +47,7 @@ func NewLimitedExporter(baseURL *entities.Address, signer services.Signer, numWo
 	return exporter
 }
 
+// Add metric to buffer.
 func (e *LimitedExporter) Add(name string, value metrics.Metric) Exporter {
 	if e.err != nil {
 		return e
@@ -70,6 +73,7 @@ func (e *LimitedExporter) Add(name string, value metrics.Metric) Exporter {
 	return e
 }
 
+// Send buffer out.
 func (e *LimitedExporter) Send() error {
 	if e.err != nil {
 		return e.err
@@ -90,11 +94,13 @@ func (e *LimitedExporter) Send() error {
 	return nil
 }
 
+// Reset buffer.
 func (e *LimitedExporter) Reset() {
 	e.buffer = make([]metrics.MetricExchange, 0)
 	e.err = nil
 }
 
+// Get error if any.
 func (e *LimitedExporter) Error() error {
 	if e.err == nil {
 		return nil

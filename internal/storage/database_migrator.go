@@ -12,6 +12,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
+// Service to migrate database
 type DatabaseMigrator struct {
 	dsn     string
 	retries int
@@ -21,10 +22,12 @@ type DatabaseMigrator struct {
 	err      error
 }
 
+// DatabaseMigrator Constructor
 func NewDatabaseMigrator(dsn string, source string, retries int) DatabaseMigrator {
 	return DatabaseMigrator{dsn: dsn, source: source, retries: retries}
 }
 
+// Run migrations if any (with retries)
 func (m DatabaseMigrator) Run() error {
 	m.err = utils.NewRetrier(
 		func() error {

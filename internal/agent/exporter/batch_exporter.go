@@ -11,13 +11,14 @@ import (
 	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 var _ Exporter = (*BatchExporter)(nil)
 
+// Batch exporter to optimize requests count.
 type BatchExporter struct {
 	baseURL *entities.Address
 	client  *http.Client
@@ -27,6 +28,7 @@ type BatchExporter struct {
 	err    error
 }
 
+// Constructor.
 func NewBatchExporter(baseURL *entities.Address, signer services.Signer) *BatchExporter {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
@@ -39,6 +41,7 @@ func NewBatchExporter(baseURL *entities.Address, signer services.Signer) *BatchE
 	}
 }
 
+// Add a metric to batch.
 func (e *BatchExporter) Add(name string, value metrics.Metric) Exporter {
 	if e.err != nil {
 		return e
@@ -62,6 +65,7 @@ func (e *BatchExporter) Add(name string, value metrics.Metric) Exporter {
 	return e
 }
 
+// Send batch.
 func (e *BatchExporter) Send() error {
 	if e.err != nil {
 		return e.err
@@ -89,11 +93,13 @@ func (e *BatchExporter) Send() error {
 	return err
 }
 
+// Reset batch.
 func (e *BatchExporter) Reset() {
 	e.buffer = make([]metrics.MetricExchange, 0)
 	e.err = nil
 }
 
+// Get error if any.
 func (e *BatchExporter) Error() error {
 	if e.err == nil {
 		return nil

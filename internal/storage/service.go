@@ -7,11 +7,10 @@ import (
 	"sort"
 
 	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
-// Common interface for service layer
-// Storage service prepares data before calling storage
+// Common interface for service layer. Storage service prepares data before calling storage
 type StorageService interface {
 	List(ctx context.Context) ([]Record, error)
 	Push(ctx context.Context, record Record) (Record, error)
@@ -19,17 +18,19 @@ type StorageService interface {
 	Get(ctx context.Context, name, kind string) (Record, error)
 }
 
-// ensure Service implements StorageService
 var _ StorageService = Service{}
 
+// Service struct, containing storage
 type Service struct {
 	Storage MetricsStorage
 }
 
+// Service constructor
 func NewService(storage MetricsStorage) Service {
 	return Service{Storage: storage}
 }
 
+// Get record from bound storage.
 func (s Service) Get(ctx context.Context, name, kind string) (Record, error) {
 	id := CalculateRecordID(name, kind)
 
@@ -41,6 +42,7 @@ func (s Service) Get(ctx context.Context, name, kind string) (Record, error) {
 	return record, nil
 }
 
+// Push record to bound storage.
 func (s Service) Push(ctx context.Context, record Record) (Record, error) {
 	newValue, err := s.calculateNewValue(ctx, record)
 	if err != nil {
@@ -57,6 +59,7 @@ func (s Service) Push(ctx context.Context, record Record) (Record, error) {
 	return record, nil
 }
 
+// Push list of records to bound storage
 func (s Service) PushList(ctx context.Context, records []Record) ([]Record, error) {
 	data := make(map[string]Record)
 
@@ -98,6 +101,7 @@ func (s Service) PushList(ctx context.Context, records []Record) ([]Record, erro
 	return result, nil
 }
 
+// List records from bound storage
 func (s Service) List(ctx context.Context) ([]Record, error) {
 	records, err := s.Storage.List(ctx)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Decompress request if possible
 func DecompressRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -39,6 +40,7 @@ func DecompressRequest(next http.Handler) http.Handler {
 	})
 }
 
+// Compress response if needed
 func CompressResponse(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

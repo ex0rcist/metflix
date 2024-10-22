@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Compose headers to string (for logging)
 func HeadersToStr(headers http.Header) string {
 	stringsSlice := []string{}
 
