@@ -10,15 +10,17 @@ import (
 	"time"
 )
 
-type Profiler struct {
-	callCounter int32
-}
-
 var (
 	profilerInstance *Profiler
 	once             sync.Once
 )
 
+// Profiler service obj to make snapshots
+type Profiler struct {
+	callCounter int32
+}
+
+// Singleton
 func GetProfiler() *Profiler {
 	once.Do(func() {
 		profilerInstance = &Profiler{}
@@ -26,6 +28,7 @@ func GetProfiler() *Profiler {
 	return profilerInstance
 }
 
+// Save snapshot. Count is a special case to take snapshot in similar conditions.
 func (p *Profiler) SaveMemoryProfile() {
 	count := atomic.AddInt32(&p.callCounter, 1)
 

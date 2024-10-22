@@ -6,6 +6,7 @@ import (
 	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
+// Runtime stats to be collected.
 type RuntimeStats struct {
 	Alloc         metrics.Gauge
 	BuckHashSys   metrics.Gauge
@@ -36,6 +37,7 @@ type RuntimeStats struct {
 	TotalAlloc    metrics.Gauge
 }
 
+// Poll and collect stats.
 func (m *RuntimeStats) Poll() {
 	stats := runtime.MemStats{}
 	runtime.ReadMemStats(&stats)

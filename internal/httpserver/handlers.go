@@ -17,10 +17,12 @@ import (
 	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
+// Resource to handle routes.
 type MetricResource struct {
 	storageService storage.StorageService
 }
 
+// Constructor.
 func NewMetricResource(storageService storage.StorageService) MetricResource {
 	return MetricResource{
 		storageService: storageService,

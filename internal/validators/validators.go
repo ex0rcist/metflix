@@ -9,6 +9,7 @@ import (
 
 var nameRegexp = regexp.MustCompile(`^[A-Za-z\d]+$`)
 
+// Ensure metric is valid
 func ValidateMetric(name, kind string) error {
 	if err := validateMetricName(name); err != nil {
 		return err

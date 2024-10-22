@@ -16,6 +16,7 @@ import (
 
 var _ MetricsStorage = DatabaseStorage{}
 
+// DB Storage
 type DatabaseStorage struct {
 	Pool PGXPool
 }
@@ -33,6 +34,7 @@ func (tracer *dbQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, 
 	// empty
 }
 
+// DatabseStorage constructor
 func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
 	migrator := NewDatabaseMigrator(dsn, "file://db/migrate", 5)
 
@@ -56,6 +58,7 @@ func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
 	return &DatabaseStorage{Pool: pool}, nil
 }
 
+// Push record to storage
 func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) error {
 	tx, err := d.Pool.Begin(ctx)
 	if err != nil {
@@ -75,6 +78,7 @@ func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) er
 	return tx.Commit(ctx)
 }
 
+// Push list of records to storage
 func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) error {
 	batch := new(pgx.Batch)
 	sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
@@ -98,6 +102,7 @@ func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) e
 	return nil
 }
 
+// Get a record from storage
 func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) {
 	var (
 		name   string
@@ -130,6 +135,7 @@ func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) {
 	return record, err
 }
 
+// Get list of records from storage
 func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) {
 	rows, err := d.Pool.Query(ctx, "SELECT name, kind, value FROM metrics")
 	if err != nil {
@@ -167,6 +173,7 @@ func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) {
 	return result, nil
 }
 
+// Healthcheck
 func (d DatabaseStorage) Ping(ctx context.Context) error {
 	if err := d.Pool.Ping(ctx); err != nil {
 		return fmt.Errorf("db storage Ping() error: %w", err)
@@ -175,6 +182,7 @@ func (d DatabaseStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Close storage pool
 func (d DatabaseStorage) Close(ctx context.Context) error {
 	d.Pool.Close()
 	return nil

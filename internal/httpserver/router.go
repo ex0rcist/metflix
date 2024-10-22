@@ -29,6 +29,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/storage"
 )
 
+// Router constructor
 func NewRouter(
 	storageService storage.StorageService,
 	pingerService services.Pinger,

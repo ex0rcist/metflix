@@ -9,7 +9,7 @@ import (
 	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
-// from JSON-struct to storage.Record
+// Convert from JSON-struct to storage.Record.
 func toRecord(mex *metrics.MetricExchange) (storage.Record, error) {
 	var record storage.Record
 

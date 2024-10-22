@@ -7,11 +7,13 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 )
 
+// HTTP-server wrapper.
 type Server struct {
 	server *http.Server
 	notify chan error
 }
 
+// Constructor.
 func New(handler http.Handler, address entities.Address) *Server {
 	httpServer := &http.Server{
 		Handler: handler,
@@ -26,6 +28,7 @@ func New(handler http.Handler, address entities.Address) *Server {
 	return s
 }
 
+// Run server in a goroutine.
 func (s *Server) Start() {
 	go func() {
 		s.notify <- s.server.ListenAndServe()
@@ -33,10 +36,12 @@ func (s *Server) Start() {
 	}()
 }
 
+// Return channel to handle errors.
 func (s *Server) Notify() <-chan error {
 	return s.notify
 }
 
+// Shutdown server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.server == nil {
 		return nil

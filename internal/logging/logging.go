@@ -18,6 +18,7 @@ type config struct {
 	ENV string `env:"APP_ENV" envDefault:"development"`
 }
 
+// Initialize logging
 func Setup() {
 	cfg := parseConfig()
 

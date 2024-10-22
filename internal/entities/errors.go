@@ -30,17 +30,20 @@ var (
 	ErrUnexpected = errors.New("unexpected error")
 )
 
+// Constructor wrapper.
 func NewStackError(err error) error {
 	return errors.New(err.Error())
 }
 
 var _ error = (*RetriableError)(nil)
 
+// Error to handle retries.
 type RetriableError struct {
 	Err        error
 	RetryAfter time.Duration
 }
 
+// Return readable representation.
 func (e RetriableError) Error() string {
 	return fmt.Sprintf("%s (retry after %v)", e.Err.Error(), e.RetryAfter)
 }

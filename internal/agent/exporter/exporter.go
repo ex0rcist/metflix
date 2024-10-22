@@ -17,6 +17,7 @@ const (
 	KindLimited = "limited"
 )
 
+// Exporter interface.
 type Exporter interface {
 	Add(name string, value metrics.Metric) Exporter
 	Send() error

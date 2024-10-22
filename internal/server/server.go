@@ -21,6 +21,7 @@ import (
 
 const shutdownTimeout = 60 * time.Second
 
+// Backend heart
 type Server struct {
 	config     *Config
 	httpServer *httpserver.Server
@@ -29,6 +30,7 @@ type Server struct {
 	router     http.Handler
 }
 
+// Backend config
 type Config struct {
 	Address         entities.Address `env:"ADDRESS"`
 	StoreInterval   int              `env:"STORE_INTERVAL"`
@@ -39,6 +41,7 @@ type Config struct {
 	ProfilerAddress entities.Address `env:"PROFILER_ADDRESS"`
 }
 
+// Server constructor
 func New() (*Server, error) {
 	config := &Config{
 		Address:         "0.0.0.0:8080",
@@ -73,6 +76,7 @@ func New() (*Server, error) {
 	}, nil
 }
 
+// Start all subservices
 func (s *Server) Start() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -112,6 +116,7 @@ func (s *Server) Start() {
 	}
 }
 
+// Stringer for logging
 func (s *Server) String() string {
 	kind := detectStorageKind(s.config)
 

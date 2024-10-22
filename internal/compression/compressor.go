@@ -9,6 +9,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Struct to handle compression.
 type Compressor struct {
 	http.ResponseWriter
 
@@ -17,6 +18,7 @@ type Compressor struct {
 	supportedContent map[string]struct{}
 }
 
+// Constructor.
 func NewCompressor(w http.ResponseWriter, ctx context.Context) *Compressor {
 	supportedContent := map[string]struct{}{
 		"application/json": {}, // {} uses no memory
@@ -30,6 +32,7 @@ func NewCompressor(w http.ResponseWriter, ctx context.Context) *Compressor {
 	}
 }
 
+// Write body to response.
 func (c *Compressor) Write(resp []byte) (int, error) {
 	contentType := c.Header().Get("Content-Type")
 
@@ -52,6 +55,7 @@ func (c *Compressor) Write(resp []byte) (int, error) {
 	return c.encoder.Write(resp)
 }
 
+// Close encoder.
 func (c *Compressor) Close() {
 	if c.encoder == nil {
 		return

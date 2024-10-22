@@ -7,10 +7,12 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
+// Profiler server to serve pprof
 type ProfilerServer struct {
 	*httpserver.Server
 }
 
+// Profiler server constructor
 func NewProfilerServer(address entities.Address) *ProfilerServer {
 	r := chi.NewRouter()
 

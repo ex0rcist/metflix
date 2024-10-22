@@ -10,6 +10,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Struct to handle encoded requests.
 type Decompressor struct {
 	request            *http.Request
 	reader             *gzip.Reader
@@ -17,6 +18,7 @@ type Decompressor struct {
 	supportedEncodings map[string]struct{}
 }
 
+// Constructor.
 func NewDecompressor(req *http.Request, ctx context.Context) *Decompressor {
 	supportedEncodings := map[string]struct{}{
 		"gzip": {}, // {} uses no memory
@@ -29,6 +31,7 @@ func NewDecompressor(req *http.Request, ctx context.Context) *Decompressor {
 	}
 }
 
+// Decompress incoming request.
 func (d *Decompressor) Decompress() error {
 	encoding := d.request.Header.Get("Content-Encoding")
 
@@ -63,6 +66,7 @@ func (d *Decompressor) Decompress() error {
 	return nil
 }
 
+// Close reader.
 func (d *Decompressor) Close() {
 	if d.reader == nil {
 		return
