@@ -158,6 +158,7 @@ func (a *Agent) reportStats() {
 	a.Stats.PollCount -= snapshot.PollCount
 }
 
+// Stringer.
 func (c Config) String() string {
 	str := []string{
 		fmt.Sprintf("address=%s", c.Address),

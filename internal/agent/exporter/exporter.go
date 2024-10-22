@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Kinds of exporter
 const (
 	KindBatch   = "batch"
 	KindLimited = "limited"

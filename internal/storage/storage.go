@@ -2,12 +2,10 @@ package storage
 
 import "context"
 
+// Kinds of storage
 const (
-	// in-memory storage
-	KindMemory = "memory"
-	// file-backed storage
-	KindFile = "file"
-	// database storage
+	KindMemory   = "memory"
+	KindFile     = "file"
 	KindDatabase = "database"
 )
 

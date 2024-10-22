@@ -335,10 +335,12 @@ func parseJSONMetricsList(r *http.Request) ([]storage.Record, error) {
 	return records, nil
 }
 
+// Resource to handle ping requests
 type PingerResource struct {
 	pinger services.Pinger
 }
 
+// Constructor
 func NewPingerResource(pinger services.Pinger) PingerResource {
 	return PingerResource{
 		pinger: pinger,

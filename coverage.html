@@ -619,6 +619,7 @@ import (
         "github.com/spf13/pflag"
 )
 
+// Metric collecting agent (mr. Bond?).
 type Agent struct {
         Config   *Config
         Stats    *Stats
@@ -627,6 +628,7 @@ type Agent struct {
         wg sync.WaitGroup
 }
 
+// Agent config.
 type Config struct {
         Address        entities.Address `env:"ADDRESS"`
         PollInterval   int              `env:"POLL_INTERVAL"`
@@ -635,6 +637,7 @@ type Config struct {
         Secret         entities.Secret  `env:"KEY"`
 }
 
+// Constructor.
 func New() (*Agent, error) <span class="cov8" title="1">{
         config := &amp;Config{
                 Address:        "0.0.0.0:8080",
@@ -660,6 +663,7 @@ func New() (*Agent, error) <span class="cov8" title="1">{
         }, nil</span>
 }
 
+// Run agent.
 func (a *Agent) Run() <span class="cov0" title="0">{
         logging.LogInfo(a.Config.String())
         logging.LogInfo("agent ready")
@@ -757,6 +761,7 @@ func (a *Agent) reportStats() <span class="cov0" title="0">{
         a.Stats.PollCount -= snapshot.PollCount</span>
 }
 
+// Stringer.
 func (c Config) String() string <span class="cov0" title="0">{
         str := []string{
                 fmt.Sprintf("address=%s", c.Address),
@@ -859,6 +864,7 @@ import (
 
 var _ Exporter = (*BatchExporter)(nil)
 
+// Batch exporter to optimize requests count.
 type BatchExporter struct {
         baseURL *entities.Address
         client  *http.Client
@@ -868,6 +874,7 @@ type BatchExporter struct {
         err    error
 }
 
+// Constructor.
 func NewBatchExporter(baseURL *entities.Address, signer services.Signer) *BatchExporter <span class="cov8" title="1">{
         client := &amp;http.Client{
                 Timeout: 2 * time.Second,
@@ -880,6 +887,7 @@ func NewBatchExporter(baseURL *entities.Address, signer services.Signer) *BatchE
         }
 }</span>
 
+// Add a metric to batch.
 func (e *BatchExporter) Add(name string, value metrics.Metric) Exporter <span class="cov8" title="1">{
         if e.err != nil </span><span class="cov0" title="0">{
                 return e
@@ -903,6 +911,7 @@ func (e *BatchExporter) Add(name string, value metrics.Metric) Exporter <span cl
         return e</span>
 }
 
+// Send batch.
 func (e *BatchExporter) Send() error <span class="cov8" title="1">{
         if e.err != nil </span><span class="cov0" title="0">{
                 return e.err
@@ -930,11 +939,13 @@ func (e *BatchExporter) Send() error <span class="cov8" title="1">{
         return err</span>
 }
 
+// Reset batch.
 func (e *BatchExporter) Reset() <span class="cov8" title="1">{
         e.buffer = make([]metrics.MetricExchange, 0)
         e.err = nil
 }</span>
 
+// Get error if any.
 func (e *BatchExporter) Error() error <span class="cov0" title="0">{
         if e.err == nil </span><span class="cov0" title="0">{
                 return nil
@@ -1021,11 +1032,13 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Kinds of exporter
 const (
         KindBatch   = "batch"
         KindLimited = "limited"
 )
 
+// Exporter interface.
 type Exporter interface {
         Add(name string, value metrics.Metric) Exporter
         Send() error
@@ -1074,6 +1087,7 @@ import (
 
 var _ Exporter = (*LimitedExporter)(nil)
 
+// An exporter to send metrics one-by-one in parallel.
 type LimitedExporter struct {
         baseURL *entities.Address
         client  *http.Client
@@ -1084,6 +1098,7 @@ type LimitedExporter struct {
         err    error
 }
 
+// Constructor.
 func NewLimitedExporter(baseURL *entities.Address, signer services.Signer, numWorkers int) *LimitedExporter <span class="cov8" title="7">{
         client := &amp;http.Client{
                 Timeout: 2 * time.Second,
@@ -1101,6 +1116,7 @@ func NewLimitedExporter(baseURL *entities.Address, signer services.Signer, numWo
         return exporter
 }</span>
 
+// Add metric to buffer.
 func (e *LimitedExporter) Add(name string, value metrics.Metric) Exporter <span class="cov6" title="4">{
         if e.err != nil </span><span class="cov0" title="0">{
                 return e
@@ -1126,6 +1142,7 @@ func (e *LimitedExporter) Add(name string, value metrics.Metric) Exporter <span 
         return e</span>
 }
 
+// Send buffer out.
 func (e *LimitedExporter) Send() error <span class="cov5" title="3">{
         if e.err != nil </span><span class="cov0" title="0">{
                 return e.err
@@ -1146,11 +1163,13 @@ func (e *LimitedExporter) Send() error <span class="cov5" title="3">{
         return nil</span>
 }
 
+// Reset buffer.
 func (e *LimitedExporter) Reset() <span class="cov5" title="3">{
         e.buffer = make([]metrics.MetricExchange, 0)
         e.err = nil
 }</span>
 
+// Get error if any.
 func (e *LimitedExporter) Error() error <span class="cov1" title="1">{
         if e.err == nil </span><span class="cov0" title="0">{
                 return nil
@@ -1263,6 +1282,7 @@ import (
         "github.com/ex0rcist/metflix/pkg/metrics"
 )
 
+// Runtime stats to be collected.
 type RuntimeStats struct {
         Alloc         metrics.Gauge
         BuckHashSys   metrics.Gauge
@@ -1293,6 +1313,7 @@ type RuntimeStats struct {
         TotalAlloc    metrics.Gauge
 }
 
+// Poll and collect stats.
 func (m *RuntimeStats) Poll() <span class="cov10" title="5">{
         stats := runtime.MemStats{}
         runtime.ReadMemStats(&amp;stats)
@@ -1340,6 +1361,7 @@ import (
         "golang.org/x/sync/errgroup"
 )
 
+// All stats to be collected.
 type Stats struct {
         System      SystemStats
         Runtime     RuntimeStats
@@ -1349,11 +1371,13 @@ type Stats struct {
         generator *rand.Rand
 }
 
+// Constructor.
 func NewStats() *Stats <span class="cov6" title="2">{
         r := rand.New(rand.NewSource(time.Now().UnixNano()))
         return &amp;Stats{generator: r}
 }</span>
 
+// Poll stats.
 func (m *Stats) Poll(ctx context.Context) error <span class="cov10" title="3">{
         logging.LogDebug("polling stats ... ")
 
@@ -1390,6 +1414,7 @@ import (
         "github.com/shirou/gopsutil/v4/mem"
 )
 
+// System stats to be reported.
 type SystemStats struct {
         TotalMemory metrics.Gauge
         FreeMemory  metrics.Gauge
@@ -1397,6 +1422,7 @@ type SystemStats struct {
         CPUutilization []metrics.Gauge
 }
 
+// Poll stats and report.
 func (s *SystemStats) Poll(ctx context.Context) error <span class="cov4" title="3">{
         vMem, err := mem.VirtualMemory()
         if err != nil </span><span class="cov0" title="0">{
@@ -1429,6 +1455,7 @@ import (
         "github.com/klauspost/compress/gzip"
 )
 
+// Pack []byte with gzip.
 func Pack(data []byte) (*bytes.Buffer, error) <span class="cov8" title="1">{
         bb := new(bytes.Buffer)
 
@@ -1460,6 +1487,7 @@ import (
         "github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Struct to handle compression.
 type Compressor struct {
         http.ResponseWriter
 
@@ -1468,6 +1496,7 @@ type Compressor struct {
         supportedContent map[string]struct{}
 }
 
+// Constructor.
 func NewCompressor(w http.ResponseWriter, ctx context.Context) *Compressor <span class="cov10" title="3">{
         supportedContent := map[string]struct{}{
                 "application/json": {}, // {} uses no memory
@@ -1481,6 +1510,7 @@ func NewCompressor(w http.ResponseWriter, ctx context.Context) *Compressor <span
         }
 }</span>
 
+// Write body to response.
 func (c *Compressor) Write(resp []byte) (int, error) <span class="cov10" title="3">{
         contentType := c.Header().Get("Content-Type")
 
@@ -1503,6 +1533,7 @@ func (c *Compressor) Write(resp []byte) (int, error) <span class="cov10" title="
         return c.encoder.Write(resp)</span>
 }
 
+// Close encoder.
 func (c *Compressor) Close() <span class="cov6" title="2">{
         if c.encoder == nil </span><span class="cov0" title="0">{
                 return
@@ -1528,6 +1559,7 @@ import (
         "github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Struct to handle encoded requests.
 type Decompressor struct {
         request            *http.Request
         reader             *gzip.Reader
@@ -1535,6 +1567,7 @@ type Decompressor struct {
         supportedEncodings map[string]struct{}
 }
 
+// Constructor.
 func NewDecompressor(req *http.Request, ctx context.Context) *Decompressor <span class="cov10" title="5">{
         supportedEncodings := map[string]struct{}{
                 "gzip": {}, // {} uses no memory
@@ -1547,6 +1580,7 @@ func NewDecompressor(req *http.Request, ctx context.Context) *Decompressor <span
         }
 }</span>
 
+// Decompress incoming request.
 func (d *Decompressor) Decompress() error <span class="cov10" title="5">{
         encoding := d.request.Header.Get("Content-Encoding")
 
@@ -1581,6 +1615,7 @@ func (d *Decompressor) Decompress() error <span class="cov10" title="5">{
         return nil</span>
 }
 
+// Close reader.
 func (d *Decompressor) Close() <span class="cov7" title="3">{
         if d.reader == nil </span><span class="cov1" title="1">{
                 return
@@ -1603,13 +1638,15 @@ import (
 )
 
 // https://github.com/spf13/pflag/blob/master/README.md#usage
-// must comply with https://pkg.go.dev/github.com/spf13/pflag@v1.0.5#Value
+// must comply with https://pkg.go.dev/github.com/spf13/pflag@v1.0.5#Value.
 type Address string
 
+// Stringer.
 func (a Address) String() string <span class="cov5" title="3">{
         return string(a)
 }</span>
 
+// Set value.
 func (a *Address) Set(src string) error <span class="cov10" title="9">{
         chunks := strings.Split(src, ":")
         if len(chunks) != 2 </span><span class="cov7" title="5">{
@@ -1627,6 +1664,7 @@ func (a *Address) Set(src string) error <span class="cov10" title="9">{
         return nil</span>
 }
 
+// Return string for correct type conversion.
 func (a Address) Type() string <span class="cov1" title="1">{
         return "string"
 }</span>
@@ -1640,6 +1678,7 @@ import (
         "time"
 )
 
+// Error types
 var (
         ErrBadAddressFormat = errors.New("bad net address format")
 
@@ -1664,17 +1703,20 @@ var (
         ErrUnexpected = errors.New("unexpected error")
 )
 
+// Constructor wrapper.
 func NewStackError(err error) error <span class="cov0" title="0">{
         return errors.New(err.Error())
 }</span>
 
 var _ error = (*RetriableError)(nil)
 
+// Error to handle retries.
 type RetriableError struct {
         Err        error
         RetryAfter time.Duration
 }
 
+// Return readable representation.
 func (e RetriableError) Error() string <span class="cov0" title="0">{
         return fmt.Sprintf("%s (retry after %v)", e.Err.Error(), e.RetryAfter)
 }</span>
@@ -1688,8 +1730,10 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Entity to hide secrets in logs.
 type Secret string
 
+// Set value.
 func (s *Secret) Set(src string) error <span class="cov0" title="0">{
         if len([]byte(src)) &lt; 32 </span><span class="cov0" title="0">{
                 log.Warn().Msg("secret is too short")
@@ -1700,10 +1744,12 @@ func (s *Secret) Set(src string) error <span class="cov0" title="0">{
         return nil</span>
 }
 
+// Return a string for correct type conversion.
 func (s Secret) Type() string <span class="cov0" title="0">{
         return "string"
 }</span>
 
+// Stringer.
 func (s Secret) String() string <span class="cov0" title="0">{
         if len(s) &lt;= 2 </span><span class="cov0" title="0">{
                 return string(s)
@@ -1725,7 +1771,7 @@ import (
         "github.com/ex0rcist/metflix/pkg/metrics"
 )
 
-// from JSON-struct to storage.Record
+// Convert from JSON-struct to storage.Record.
 func toRecord(mex *metrics.MetricExchange) (storage.Record, error) <span class="cov10" title="20">{
         var record storage.Record
 
@@ -1804,10 +1850,12 @@ import (
         "github.com/ex0rcist/metflix/pkg/metrics"
 )
 
+// Resource to handle routes.
 type MetricResource struct {
         storageService storage.StorageService
 }
 
+// Constructor.
 func NewMetricResource(storageService storage.StorageService) MetricResource <span class="cov10" title="40">{
         return MetricResource{
                 storageService: storageService,
@@ -2120,10 +2168,12 @@ func parseJSONMetricsList(r *http.Request) ([]storage.Record, error) <span class
         <span class="cov2" title="2">return records, nil</span>
 }
 
+// Resource to handle ping requests
 type PingerResource struct {
         pinger services.Pinger
 }
 
+// Constructor
 func NewPingerResource(pinger services.Pinger) PingerResource <span class="cov10" title="40">{
         return PingerResource{
                 pinger: pinger,
@@ -2203,6 +2253,7 @@ import (
         "github.com/ex0rcist/metflix/internal/storage"
 )
 
+// Router constructor
 func NewRouter(
         storageService storage.StorageService,
         pingerService services.Pinger,
@@ -2267,11 +2318,13 @@ import (
         "github.com/ex0rcist/metflix/internal/entities"
 )
 
+// HTTP-server wrapper.
 type Server struct {
         server *http.Server
         notify chan error
 }
 
+// Constructor.
 func New(handler http.Handler, address entities.Address) *Server <span class="cov0" title="0">{
         httpServer := &amp;http.Server{
                 Handler: handler,
@@ -2286,6 +2339,7 @@ func New(handler http.Handler, address entities.Address) *Server <span class="co
         return s
 }</span>
 
+// Run server in a goroutine.
 func (s *Server) Start() <span class="cov0" title="0">{
         go func() </span><span class="cov0" title="0">{
                 s.notify &lt;- s.server.ListenAndServe()
@@ -2293,10 +2347,12 @@ func (s *Server) Start() <span class="cov0" title="0">{
         }</span>()
 }
 
+// Return channel to handle errors.
 func (s *Server) Notify() &lt;-chan error <span class="cov0" title="0">{
         return s.notify
 }</span>
 
+// Shutdown server.
 func (s *Server) Shutdown(ctx context.Context) error <span class="cov0" title="0">{
         if s.server == nil </span><span class="cov0" title="0">{
                 return nil
@@ -2316,15 +2372,18 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Log with level=debug and formatting
 func LogDebugF(format string, args ...any) <span class="cov0" title="0">{
         message := fmt.Sprintf(format, args...)
         logDebug(&amp;log.Logger, message)
 }</span>
 
+// Log with level=debug
 func LogDebug(messages ...string) <span class="cov0" title="0">{
         logDebug(&amp;log.Logger, messages...)
 }</span>
 
+// Log with context (request_id) and level=debug
 func LogDebugCtx(ctx context.Context, messages ...string) <span class="cov0" title="0">{
         logger := loggerFromContext(ctx)
         logDebug(logger, messages...)
@@ -2346,15 +2405,18 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Log with level=error and formatting
 func LogErrorF(format string, err error) <span class="cov0" title="0">{
         fErr := fmt.Errorf(format, err)
         logError(&amp;log.Logger, fErr)
 }</span>
 
+// Log with level=error
 func LogError(err error, messages ...string) <span class="cov0" title="0">{
         logError(&amp;log.Logger, err, messages...)
 }</span>
 
+// Log with context (request_id) and level=error
 func LogErrorCtx(ctx context.Context, err error, messages ...string) <span class="cov0" title="0">{
         logger := loggerFromContext(ctx)
         logError(logger, err, messages...)
@@ -2381,15 +2443,18 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Log with level=fatal and formatting
 func LogFatalF(format string, err error) <span class="cov0" title="0">{
         fErr := fmt.Errorf(format, err)
         logFatal(&amp;log.Logger, fErr)
 }</span>
 
+// Log with level=fatal
 func LogFatal(err error, messages ...string) <span class="cov0" title="0">{
         logFatal(&amp;log.Logger, err, messages...)
 }</span>
 
+// Log with context (request_id) and level=fatal
 func LogFatalCtx(ctx context.Context, err error, messages ...string) <span class="cov0" title="0">{
         logger := loggerFromContext(ctx)
         logFatal(logger, err, messages...)
@@ -2416,15 +2481,18 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Log with level=info and formatting
 func LogInfoF(format string, args ...any) <span class="cov0" title="0">{
         message := fmt.Sprintf(format, args...)
         logInfo(&amp;log.Logger, message)
 }</span>
 
+// Log with level=info
 func LogInfo(messages ...string) <span class="cov0" title="0">{
         logInfo(&amp;log.Logger, messages...)
 }</span>
 
+// Log with context (request_id) and level=info
 func LogInfoCtx(ctx context.Context, messages ...string) <span class="cov0" title="0">{
         logger := loggerFromContext(ctx)
         logInfo(logger, messages...)
@@ -2456,6 +2524,7 @@ type config struct {
         ENV string `env:"APP_ENV" envDefault:"development"`
 }
 
+// Initialize logging
 func Setup() <span class="cov8" title="1">{
         cfg := parseConfig()
 
@@ -2538,15 +2607,18 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Log with level=warn and formatting
 func LogWarnF(format string, args ...any) <span class="cov0" title="0">{
         message := fmt.Sprintf(format, args...)
         logWarn(&amp;log.Logger, message)
 }</span>
 
+// Log with level=warn
 func LogWarn(messages ...string) <span class="cov0" title="0">{
         logWarn(&amp;log.Logger, messages...)
 }</span>
 
+// Log with context (request_id) and level=warn
 func LogWarnCtx(ctx context.Context, messages ...string) <span class="cov0" title="0">{
         logger := loggerFromContext(ctx)
         logWarn(logger, messages...)
@@ -2570,6 +2642,7 @@ import (
         "github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Decompress request if possible
 func DecompressRequest(next http.Handler) http.Handler <span class="cov10" title="4">{
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov10" title="4">{
                 ctx := r.Context()
@@ -2599,6 +2672,7 @@ func DecompressRequest(next http.Handler) http.Handler <span class="cov10" title
         })
 }
 
+// Compress response if needed
 func CompressResponse(next http.Handler) http.Handler <span class="cov5" title="2">{
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov5" title="2">{
                 ctx := r.Context()
@@ -2643,6 +2717,7 @@ import (
         "github.com/rs/zerolog/log"
 )
 
+// Log requests middleware
 func RequestsLogger(next http.Handler) http.Handler <span class="cov0" title="0">{
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
                 start := time.Now()
@@ -2711,10 +2786,12 @@ type CustomResponseWriter struct {
         body *bytes.Buffer
 }
 
+// Write body
 func (w *CustomResponseWriter) Write(b []byte) (int, error) <span class="cov1" title="1">{
         return w.body.Write(b)
 }</span>
 
+// Sign response middleware
 func SignResponse(next http.Handler, secret entities.Secret) http.Handler <span class="cov6" title="2">{
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov6" title="2">{
                 ctx := r.Context()
@@ -2750,6 +2827,7 @@ func SignResponse(next http.Handler, secret entities.Secret) http.Handler <span 
         })
 }
 
+// Ensure incoming request satisfies it's signature.
 func CheckSignedRequest(next http.Handler, secret entities.Secret) http.Handler <span class="cov10" title="3">{
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov10" title="3">{
                 ctx := r.Context()
@@ -2809,15 +2887,17 @@ import (
         "time"
 )
 
-type Profiler struct {
-        callCounter int32
-}
-
 var (
         profilerInstance *Profiler
         once             sync.Once
 )
 
+// Profiler service obj to make snapshots
+type Profiler struct {
+        callCounter int32
+}
+
+// Singleton
 func GetProfiler() *Profiler <span class="cov8" title="1">{
         once.Do(func() </span><span class="cov8" title="1">{
                 profilerInstance = &amp;Profiler{}
@@ -2825,6 +2905,7 @@ func GetProfiler() *Profiler <span class="cov8" title="1">{
         <span class="cov8" title="1">return profilerInstance</span>
 }
 
+// Save snapshot. Count is a special case to take snapshot in similar conditions.
 func (p *Profiler) SaveMemoryProfile() <span class="cov8" title="1">{
         count := atomic.AddInt32(&amp;p.callCounter, 1)
 
@@ -2859,10 +2940,12 @@ import (
         "github.com/go-chi/chi/middleware"
 )
 
+// Profiler server to serve pprof
 type ProfilerServer struct {
         *httpserver.Server
 }
 
+// Profiler server constructor
 func NewProfilerServer(address entities.Address) *ProfilerServer <span class="cov10" title="2">{
         r := chi.NewRouter()
 
@@ -2900,6 +2983,7 @@ import (
 
 const shutdownTimeout = 60 * time.Second
 
+// Backend heart
 type Server struct {
         config     *Config
         httpServer *httpserver.Server
@@ -2908,6 +2992,7 @@ type Server struct {
         router     http.Handler
 }
 
+// Backend config
 type Config struct {
         Address         entities.Address `env:"ADDRESS"`
         StoreInterval   int              `env:"STORE_INTERVAL"`
@@ -2918,6 +3003,7 @@ type Config struct {
         ProfilerAddress entities.Address `env:"PROFILER_ADDRESS"`
 }
 
+// Server constructor
 func New() (*Server, error) <span class="cov5" title="2">{
         config := &amp;Config{
                 Address:         "0.0.0.0:8080",
@@ -2952,6 +3038,7 @@ func New() (*Server, error) <span class="cov5" title="2">{
         }, nil</span>
 }
 
+// Start all subservices
 func (s *Server) Start() <span class="cov0" title="0">{
         interrupt := make(chan os.Signal, 1)
         signal.Notify(interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -2991,6 +3078,7 @@ func (s *Server) Start() <span class="cov0" title="0">{
         }
 }
 
+// Stringer for logging
 func (s *Server) String() string <span class="cov1" title="1">{
         kind := detectStorageKind(s.config)
 
@@ -3132,18 +3220,22 @@ import (
 
 var _ Pinger = PingerService{}
 
+// Pinger interface
 type Pinger interface {
         Ping(ctx context.Context) error
 }
 
+// Pinger service to make healthcheck
 type PingerService struct {
         storage storage.MetricsStorage
 }
 
+// Pinger constructor.
 func NewPingerService(storage storage.MetricsStorage) PingerService <span class="cov10" title="3">{
         return PingerService{storage: storage}
 }</span>
 
+// Ping-pong.
 func (s PingerService) Ping(ctx context.Context) error <span class="cov10" title="3">{
         ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
         defer cancel()
@@ -3173,19 +3265,23 @@ import (
 
 var _ Signer = SignerService{}
 
+// Interface to Signer service
 type Signer interface {
         CalculateSignature(data []byte) (string, error)
         VerifySignature(data []byte, hash string) (bool, error)
 }
 
+// Signer service
 type SignerService struct {
         secret []byte
 }
 
+// Signer constructor
 func NewSignerService(secret entities.Secret) SignerService <span class="cov10" title="3">{
         return SignerService{secret: []byte(secret)}
 }</span>
 
+// Calculate signature of []byte
 func (s SignerService) CalculateSignature(data []byte) (string, error) <span class="cov10" title="3">{
         mac := hmac.New(sha256.New, s.secret)
 
@@ -3198,6 +3294,7 @@ func (s SignerService) CalculateSignature(data []byte) (string, error) <span cla
         return hex.EncodeToString(digest), nil</span>
 }
 
+// Verify signature, provided for []byte.
 func (s SignerService) VerifySignature(data []byte, hash string) (bool, error) <span class="cov6" title="2">{
         if len(hash) == 0 </span><span class="cov0" title="0">{
                 return false, entities.ErrNoSignature
@@ -3230,6 +3327,7 @@ import (
 
 var _ MetricsStorage = DatabaseStorage{}
 
+// DB Storage
 type DatabaseStorage struct {
         Pool PGXPool
 }
@@ -3238,15 +3336,18 @@ type dbQueryTracer struct {
         logger *zerolog.Logger
 }
 
+// Logs query
 func (tracer *dbQueryTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context <span class="cov0" title="0">{
         tracer.logger.Debug().Msg(fmt.Sprintf("Executing command \"%s\" with args %v", data.SQL, data.Args))
         return ctx
 }</span>
 
+// Does nothing, required by interface
 func (tracer *dbQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryEndData) {<span class="cov0" title="0">
         // empty
 }</span>
 
+// DatabseStorage constructor
 func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) <span class="cov0" title="0">{
         migrator := NewDatabaseMigrator(dsn, "file://db/migrate", 5)
 
@@ -3270,6 +3371,7 @@ func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) <span class="cov0"
         <span class="cov0" title="0">return &amp;DatabaseStorage{Pool: pool}, nil</span>
 }
 
+// Push record to storage
 func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) error <span class="cov1" title="1">{
         tx, err := d.Pool.Begin(ctx)
         if err != nil </span><span class="cov0" title="0">{
@@ -3289,6 +3391,7 @@ func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) er
         <span class="cov1" title="1">return tx.Commit(ctx)</span>
 }
 
+// Push list of records to storage
 func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) error <span class="cov1" title="1">{
         batch := new(pgx.Batch)
         sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
@@ -3312,6 +3415,7 @@ func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) e
         <span class="cov1" title="1">return nil</span>
 }
 
+// Get a record from storage
 func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) <span class="cov1" title="1">{
         var (
                 name   string
@@ -3344,6 +3448,7 @@ func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) <s
         <span class="cov1" title="1">return record, err</span>
 }
 
+// Get list of records from storage
 func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) <span class="cov1" title="1">{
         rows, err := d.Pool.Query(ctx, "SELECT name, kind, value FROM metrics")
         if err != nil </span><span class="cov0" title="0">{
@@ -3381,6 +3486,7 @@ func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) <span class
         <span class="cov1" title="1">return result, nil</span>
 }
 
+// Healthcheck
 func (d DatabaseStorage) Ping(ctx context.Context) error <span class="cov1" title="1">{
         if err := d.Pool.Ping(ctx); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("db storage Ping() error: %w", err)
@@ -3389,6 +3495,7 @@ func (d DatabaseStorage) Ping(ctx context.Context) error <span class="cov1" titl
         <span class="cov1" title="1">return nil</span>
 }
 
+// Close storage pool
 func (d DatabaseStorage) Close(ctx context.Context) error <span class="cov1" title="1">{
         d.Pool.Close()
         return nil
@@ -3409,6 +3516,7 @@ import (
         _ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
+// Service to migrate database
 type DatabaseMigrator struct {
         dsn     string
         retries int
@@ -3418,10 +3526,12 @@ type DatabaseMigrator struct {
         err      error
 }
 
+// DatabaseMigrator Constructor
 func NewDatabaseMigrator(dsn string, source string, retries int) DatabaseMigrator <span class="cov0" title="0">{
         return DatabaseMigrator{dsn: dsn, source: source, retries: retries}
 }</span>
 
+// Run migrations if any (with retries)
 func (m DatabaseMigrator) Run() error <span class="cov0" title="0">{
         m.err = utils.NewRetrier(
                 func() error </span><span class="cov0" title="0">{
@@ -3492,9 +3602,9 @@ import (
         "github.com/ex0rcist/metflix/internal/utils"
 )
 
-// check that FileStorage implements MetricsStorage
 var _ MetricsStorage = (*FileStorage)(nil)
 
+// File-backed storage.
 type FileStorage struct {
         *MemStorage
         sync.Mutex
@@ -3505,6 +3615,7 @@ type FileStorage struct {
         dumpTicker     *time.Ticker
 }
 
+// FileStorage constructor.
 func NewFileStorage(storePath string, storeInterval int, restoreOnStart bool) (*FileStorage, error) <span class="cov10" title="5">{
         fs := &amp;FileStorage{
                 MemStorage:     NewMemStorage(),
@@ -3527,6 +3638,7 @@ func NewFileStorage(storePath string, storeInterval int, restoreOnStart bool) (*
         <span class="cov10" title="5">return fs, nil</span>
 }
 
+// Push a record to the storage.
 func (s *FileStorage) Push(ctx context.Context, id string, record Record) error <span class="cov7" title="3">{
         if err := s.MemStorage.Push(ctx, id, record); err != nil </span><span class="cov0" title="0">{
                 return err
@@ -3539,6 +3651,7 @@ func (s *FileStorage) Push(ctx context.Context, id string, record Record) error 
         <span class="cov1" title="1">return nil</span>
 }
 
+// Push list of records to the storage.
 func (s *FileStorage) PushList(ctx context.Context, data map[string]Record) error <span class="cov0" title="0">{
         if err := s.MemStorage.PushList(ctx, data); err != nil </span><span class="cov0" title="0">{
                 return err
@@ -3551,6 +3664,7 @@ func (s *FileStorage) PushList(ctx context.Context, data map[string]Record) erro
         <span class="cov0" title="0">return nil</span>
 }
 
+// Close storage (dump to disk)
 func (s *FileStorage) Close(_ context.Context) error <span class="cov1" title="1">{
         if s.dumpTicker != nil </span><span class="cov1" title="1">{
                 s.dumpTicker.Stop()
@@ -3643,20 +3757,22 @@ import (
         "github.com/ex0rcist/metflix/internal/entities"
 )
 
-// check that MemStorage implements MetricsStorage
 var _ MetricsStorage = (*MemStorage)(nil)
 
+// In-memory storage.
 type MemStorage struct {
         sync.Mutex
         Data map[string]Record `json:"records"`
 }
 
+// MemoryStorage constructor.
 func NewMemStorage() *MemStorage <span class="cov10" title="11">{
         return &amp;MemStorage{
                 Data: make(map[string]Record),
         }
 }</span>
 
+// Push a record to the storage.
 func (s *MemStorage) Push(_ context.Context, id string, record Record) error <span class="cov9" title="10">{
         s.Lock()
         defer s.Unlock()
@@ -3666,6 +3782,7 @@ func (s *MemStorage) Push(_ context.Context, id string, record Record) error <sp
         return nil
 }</span>
 
+// Push list of records to the storage.
 func (s *MemStorage) PushList(_ context.Context, data map[string]Record) error <span class="cov1" title="1">{
         s.Lock()
         defer s.Unlock()
@@ -3677,6 +3794,7 @@ func (s *MemStorage) PushList(_ context.Context, data map[string]Record) error <
         <span class="cov1" title="1">return nil</span>
 }
 
+// Get single record from the storage.
 func (s *MemStorage) Get(_ context.Context, id string) (Record, error) <span class="cov10" title="11">{
         s.Lock()
         defer s.Unlock()
@@ -3689,6 +3807,7 @@ func (s *MemStorage) Get(_ context.Context, id string) (Record, error) <span cla
         <span class="cov9" title="10">return record, nil</span>
 }
 
+// Get list of records from the storage.
 func (s *MemStorage) List(_ context.Context) ([]Record, error) <span class="cov1" title="1">{
         s.Lock()
         defer s.Unlock()
@@ -3704,6 +3823,7 @@ func (s *MemStorage) List(_ context.Context) ([]Record, error) <span class="cov1
         <span class="cov1" title="1">return arr, nil</span>
 }
 
+// Take snapshot of records.
 func (s *MemStorage) Snapshot() *MemStorage <span class="cov6" title="4">{
         s.Lock()
         defer s.Unlock()
@@ -3717,6 +3837,7 @@ func (s *MemStorage) Snapshot() *MemStorage <span class="cov6" title="4">{
         <span class="cov6" title="4">return &amp;MemStorage{Data: snapshot}</span>
 }
 
+// Close storage (does nothing for in-memory).
 func (s *MemStorage) Close(_ context.Context) error <span class="cov0" title="0">{
         return nil // do nothing
 }</span>
@@ -3732,11 +3853,13 @@ import (
         "github.com/ex0rcist/metflix/pkg/metrics"
 )
 
+// Struct to store metrics in storage
 type Record struct {
         Name  string
         Value metrics.Metric
 }
 
+// Calculate record ID for ease of store and search
 func CalculateRecordID(name, kind string) string <span class="cov10" title="44">{
         if len(name) == 0 || len(kind) == 0 </span><span class="cov4" title="5">{
                 return ""
@@ -3745,10 +3868,12 @@ func CalculateRecordID(name, kind string) string <span class="cov10" title="44">
         <span class="cov9" title="39">return name + "_" + kind</span>
 }
 
+// Calculate record ID for ease of store and search
 func (r Record) CalculateRecordID() string <span class="cov9" title="38">{
         return CalculateRecordID(r.Name, r.Value.Kind())
 }</span>
 
+// Serialize to JSON
 func (r Record) MarshalJSON() ([]byte, error) <span class="cov5" title="6">{
         jv, err := json.Marshal(map[string]string{
                 "name":  r.Name,
@@ -3763,6 +3888,7 @@ func (r Record) MarshalJSON() ([]byte, error) <span class="cov5" title="6">{
         <span class="cov5" title="6">return jv, nil</span>
 }
 
+// Deserialize from JSON
 func (r *Record) UnmarshalJSON(src []byte) error <span class="cov6" title="9">{
         var data map[string]string
 
@@ -3807,8 +3933,7 @@ import (
         "github.com/ex0rcist/metflix/pkg/metrics"
 )
 
-// Common interface for service layer
-// Storage service prepares data before calling storage
+// Common interface for service layer. Storage service prepares data before calling storage
 type StorageService interface {
         List(ctx context.Context) ([]Record, error)
         Push(ctx context.Context, record Record) (Record, error)
@@ -3816,17 +3941,19 @@ type StorageService interface {
         Get(ctx context.Context, name, kind string) (Record, error)
 }
 
-// ensure Service implements StorageService
 var _ StorageService = Service{}
 
+// Service struct, containing storage
 type Service struct {
         Storage MetricsStorage
 }
 
+// Service constructor
 func NewService(storage MetricsStorage) Service <span class="cov10" title="17">{
         return Service{Storage: storage}
 }</span>
 
+// Get record from bound storage.
 func (s Service) Get(ctx context.Context, name, kind string) (Record, error) <span class="cov3" title="2">{
         id := CalculateRecordID(name, kind)
 
@@ -3838,6 +3965,7 @@ func (s Service) Get(ctx context.Context, name, kind string) (Record, error) <sp
         <span class="cov1" title="1">return record, nil</span>
 }
 
+// Push record to bound storage.
 func (s Service) Push(ctx context.Context, record Record) (Record, error) <span class="cov7" title="7">{
         newValue, err := s.calculateNewValue(ctx, record)
         if err != nil </span><span class="cov3" title="2">{
@@ -3854,6 +3982,7 @@ func (s Service) Push(ctx context.Context, record Record) (Record, error) <span 
         <span class="cov5" title="4">return record, nil</span>
 }
 
+// Push list of records to bound storage
 func (s Service) PushList(ctx context.Context, records []Record) ([]Record, error) <span class="cov1" title="1">{
         data := make(map[string]Record)
 
@@ -3895,6 +4024,7 @@ func (s Service) PushList(ctx context.Context, records []Record) ([]Record, erro
         <span class="cov1" title="1">return result, nil</span>
 }
 
+// List records from bound storage
 func (s Service) List(ctx context.Context) ([]Record, error) <span class="cov3" title="2">{
         records, err := s.Storage.List(ctx)
         if err != nil </span><span class="cov1" title="1">{
@@ -3938,6 +4068,7 @@ import (
         "strings"
 )
 
+// Compose headers to string (for logging)
 func HeadersToStr(headers http.Header) string <span class="cov8" title="4">{
         stringsSlice := []string{}
 
@@ -3961,6 +4092,7 @@ import (
         uuid "github.com/satori/go.uuid"
 )
 
+// Generate unique request id
 func GenerateRequestID() string <span class="cov8" title="1">{
         return uuid.NewV4().String()
 }</span>
@@ -3975,12 +4107,14 @@ import (
         "github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Retrier service to make some retries
 type Retrier struct {
         payloadFn retry.RetryableFunc
         retryIfFn retry.RetryIfFunc
         delays    []time.Duration
 }
 
+// Run, Forest
 func (r Retrier) Run() error <span class="cov8" title="3">{
         return retry.Do(
                 r.payloadFn,
@@ -3993,6 +4127,7 @@ func (r Retrier) Run() error <span class="cov8" title="3">{
         )
 }
 
+// Retrier constructor
 func NewRetrier(payloadFn func() error, retryIfFn func(err error) bool, delays []time.Duration) Retrier <span class="cov8" title="3">{
         return Retrier{
                 payloadFn: payloadFn,
@@ -4006,6 +4141,7 @@ func NewRetrier(payloadFn func() error, retryIfFn func(err error) bool, delays [
 
 import "time"
 
+// Convert int (seconds) to time.Duration
 func IntToDuration(s int) time.Duration <span class="cov10" title="5">{
         return time.Duration(s) * time.Second
 }</span>
@@ -4022,6 +4158,7 @@ import (
 
 var nameRegexp = regexp.MustCompile(`^[A-Za-z\d]+$`)
 
+// Ensure metric is valid
 func ValidateMetric(name, kind string) error <span class="cov10" title="7">{
         if err := validateMetricName(name); err != nil </span><span class="cov7" title="4">{
                 return err
@@ -4156,6 +4293,7 @@ const (
         KindGauge   = "gauge"
 )
 
+// Metric interface
 type Metric interface {
         Kind() string
         String() string
@@ -4164,10 +4302,12 @@ type Metric interface {
 // Gauge metric type - int64.
 type Counter int64
 
+// Return metric kind
 func (c Counter) Kind() string <span class="cov1" title="1">{
         return KindCounter
 }</span>
 
+// Stringer
 func (c Counter) String() string <span class="cov1" title="1">{
         return strconv.FormatInt(int64(c), 10)
 }</span>
@@ -4175,14 +4315,17 @@ func (c Counter) String() string <span class="cov1" title="1">{
 // Gauge metric type - float64.
 type Gauge float64
 
+// Return metric kind
 func (g Gauge) Kind() string <span class="cov1" title="1">{
         return KindGauge
 }</span>
 
+// Stringer
 func (g Gauge) String() string <span class="cov10" title="2">{
         return strconv.FormatFloat(float64(g), 'f', -1, 64)
 }</span>
 
+// Convert string value to metrics.Counter
 func ToCounter(value string) (Counter, error) <span class="cov0" title="0">{
         rawValue, err := strconv.ParseInt(value, 10, 64)
         if err != nil </span><span class="cov0" title="0">{
@@ -4192,6 +4335,7 @@ func ToCounter(value string) (Counter, error) <span class="cov0" title="0">{
         <span class="cov0" title="0">return Counter(rawValue), nil</span>
 }
 
+// Convert string value to metrics.Gauge
 func ToGauge(value string) (Gauge, error) <span class="cov0" title="0">{
         rawValue, err := strconv.ParseFloat(value, 64)
         if err != nil </span><span class="cov0" title="0">{

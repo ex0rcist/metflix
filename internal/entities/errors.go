@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Error types
 var (
 	ErrBadAddressFormat = errors.New("bad net address format")
 
