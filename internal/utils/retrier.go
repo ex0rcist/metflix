@@ -7,12 +7,14 @@ import (
 	"github.com/ex0rcist/metflix/internal/logging"
 )
 
+// Retrier service to make some retries
 type Retrier struct {
 	payloadFn retry.RetryableFunc
 	retryIfFn retry.RetryIfFunc
 	delays    []time.Duration
 }
 
+// Run, Forest
 func (r Retrier) Run() error {
 	return retry.Do(
 		r.payloadFn,
@@ -25,6 +27,7 @@ func (r Retrier) Run() error {
 	)
 }
 
+// Retrier constructor
 func NewRetrier(payloadFn func() error, retryIfFn func(err error) bool, delays []time.Duration) Retrier {
 	return Retrier{
 		payloadFn: payloadFn,

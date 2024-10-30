@@ -5,14 +5,16 @@ import (
 	"fmt"
 
 	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
+// Struct to store metrics in storage
 type Record struct {
 	Name  string
 	Value metrics.Metric
 }
 
+// Calculate record ID for ease of store and search
 func CalculateRecordID(name, kind string) string {
 	if len(name) == 0 || len(kind) == 0 {
 		return ""
@@ -21,10 +23,12 @@ func CalculateRecordID(name, kind string) string {
 	return name + "_" + kind
 }
 
+// Calculate record ID for ease of store and search
 func (r Record) CalculateRecordID() string {
 	return CalculateRecordID(r.Name, r.Value.Kind())
 }
 
+// Serialize to JSON
 func (r Record) MarshalJSON() ([]byte, error) {
 	jv, err := json.Marshal(map[string]string{
 		"name":  r.Name,
@@ -39,6 +43,7 @@ func (r Record) MarshalJSON() ([]byte, error) {
 	return jv, nil
 }
 
+// Deserialize from JSON
 func (r *Record) UnmarshalJSON(src []byte) error {
 	var data map[string]string
 

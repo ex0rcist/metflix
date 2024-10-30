@@ -2,10 +2,11 @@ package compression
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"io"
+
+	"github.com/klauspost/compress/gzip"
 
 	"github.com/ex0rcist/metflix/internal/entities"
 

@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// implements pgxpool.Pool
+// Interface that implements pgxpool.Pool
 type PGXPool interface {
 	Acquire(ctx context.Context) (c *pgxpool.Conn, err error)
 	Begin(ctx context.Context) (pgx.Tx, error)

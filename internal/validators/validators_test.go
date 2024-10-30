@@ -3,8 +3,8 @@ package validators_test
 import (
 	"testing"
 
-	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/validators"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
 func TestValidateMetric(t *testing.T) {

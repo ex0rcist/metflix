@@ -1,15 +1,15 @@
-package server
+package httpserver
 
 import (
 	"fmt"
 
 	"github.com/ex0rcist/metflix/internal/entities"
-	"github.com/ex0rcist/metflix/internal/metrics"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/ex0rcist/metflix/internal/validators"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 )
 
-// from JSON-struct to storage.Record
+// Convert from JSON-struct to storage.Record.
 func toRecord(mex *metrics.MetricExchange) (storage.Record, error) {
 	var record storage.Record
 

@@ -7,20 +7,22 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 )
 
-// check that MemStorage implements MetricsStorage
 var _ MetricsStorage = (*MemStorage)(nil)
 
+// In-memory storage.
 type MemStorage struct {
 	sync.Mutex
 	Data map[string]Record `json:"records"`
 }
 
+// MemoryStorage constructor.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
 		Data: make(map[string]Record),
 	}
 }
 
+// Push a record to the storage.
 func (s *MemStorage) Push(_ context.Context, id string, record Record) error {
 	s.Lock()
 	defer s.Unlock()
@@ -30,6 +32,7 @@ func (s *MemStorage) Push(_ context.Context, id string, record Record) error {
 	return nil
 }
 
+// Push list of records to the storage.
 func (s *MemStorage) PushList(_ context.Context, data map[string]Record) error {
 	s.Lock()
 	defer s.Unlock()
@@ -41,6 +44,7 @@ func (s *MemStorage) PushList(_ context.Context, data map[string]Record) error {
 	return nil
 }
 
+// Get single record from the storage.
 func (s *MemStorage) Get(_ context.Context, id string) (Record, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -53,6 +57,7 @@ func (s *MemStorage) Get(_ context.Context, id string) (Record, error) {
 	return record, nil
 }
 
+// Get list of records from the storage.
 func (s *MemStorage) List(_ context.Context) ([]Record, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -68,6 +73,7 @@ func (s *MemStorage) List(_ context.Context) ([]Record, error) {
 	return arr, nil
 }
 
+// Take snapshot of records.
 func (s *MemStorage) Snapshot() *MemStorage {
 	s.Lock()
 	defer s.Unlock()
@@ -81,6 +87,7 @@ func (s *MemStorage) Snapshot() *MemStorage {
 	return &MemStorage{Data: snapshot}
 }
 
+// Close storage (does nothing for in-memory).
 func (s *MemStorage) Close(_ context.Context) error {
 	return nil // do nothing
 }

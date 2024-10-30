@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
+// System stats to be reported.
 type SystemStats struct {
 	TotalMemory metrics.Gauge
 	FreeMemory  metrics.Gauge
@@ -16,6 +17,7 @@ type SystemStats struct {
 	CPUutilization []metrics.Gauge
 }
 
+// Poll stats and report.
 func (s *SystemStats) Poll(ctx context.Context) error {
 	vMem, err := mem.VirtualMemory()
 	if err != nil {

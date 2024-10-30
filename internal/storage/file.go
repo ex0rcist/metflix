@@ -12,9 +12,9 @@ import (
 	"github.com/ex0rcist/metflix/internal/utils"
 )
 
-// check that FileStorage implements MetricsStorage
 var _ MetricsStorage = (*FileStorage)(nil)
 
+// File-backed storage.
 type FileStorage struct {
 	*MemStorage
 	sync.Mutex
@@ -25,6 +25,7 @@ type FileStorage struct {
 	dumpTicker     *time.Ticker
 }
 
+// FileStorage constructor.
 func NewFileStorage(storePath string, storeInterval int, restoreOnStart bool) (*FileStorage, error) {
 	fs := &FileStorage{
 		MemStorage:     NewMemStorage(),
@@ -47,6 +48,7 @@ func NewFileStorage(storePath string, storeInterval int, restoreOnStart bool) (*
 	return fs, nil
 }
 
+// Push a record to the storage.
 func (s *FileStorage) Push(ctx context.Context, id string, record Record) error {
 	if err := s.MemStorage.Push(ctx, id, record); err != nil {
 		return err
@@ -59,6 +61,7 @@ func (s *FileStorage) Push(ctx context.Context, id string, record Record) error 
 	return nil
 }
 
+// Push list of records to the storage.
 func (s *FileStorage) PushList(ctx context.Context, data map[string]Record) error {
 	if err := s.MemStorage.PushList(ctx, data); err != nil {
 		return err
@@ -71,6 +74,7 @@ func (s *FileStorage) PushList(ctx context.Context, data map[string]Record) erro
 	return nil
 }
 
+// Close storage (dump to disk)
 func (s *FileStorage) Close(_ context.Context) error {
 	if s.dumpTicker != nil {
 		s.dumpTicker.Stop()

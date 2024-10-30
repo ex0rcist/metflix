@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/metrics"
+	"github.com/ex0rcist/metflix/pkg/metrics"
 	"golang.org/x/sync/errgroup"
 )
 
+// All stats to be collected.
 type Stats struct {
 	System      SystemStats
 	Runtime     RuntimeStats
@@ -20,11 +21,13 @@ type Stats struct {
 	generator *rand.Rand
 }
 
+// Constructor.
 func NewStats() *Stats {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return &Stats{generator: r}
 }
 
+// Poll stats.
 func (m *Stats) Poll(ctx context.Context) error {
 	logging.LogDebug("polling stats ... ")
 
