@@ -144,6 +144,10 @@ func (d PostgresStorage) List(ctx context.Context) ([]Record, error) {
 		return nil, fmt.Errorf("db storage List() error: %w", err)
 	}
 
+	if rowErr := rows.Err(); rowErr != nil {
+		return nil, fmt.Errorf("db storage List() error: %w", rowErr)
+	}
+
 	defer rows.Close()
 
 	var (

@@ -135,10 +135,10 @@ func (e *BatchExporter) doSend() error {
 	req.Header.Set("X-Request-Id", requestID)
 
 	if e.signer != nil {
-		signature, err := e.signer.CalculateSignature(payload.Bytes())
-		if err != nil {
-			logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during signing", err.Error())
-			return err
+		signature, signErr := e.signer.CalculateSignature(payload.Bytes())
+		if signErr != nil {
+			logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during signing", signErr.Error())
+			return signErr
 		}
 
 		req.Header.Set("HashSHA256", signature)
@@ -152,7 +152,12 @@ func (e *BatchExporter) doSend() error {
 		return entities.RetriableError{Err: err, RetryAfter: 10 * time.Second}
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reading response body", err.Error())

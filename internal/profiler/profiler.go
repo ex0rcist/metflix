@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ex0rcist/metflix/internal/logging"
 )
 
 var (
@@ -43,7 +45,13 @@ func (p *Profiler) SaveMemoryProfile() {
 	if err != nil {
 		panic(err)
 	}
-	defer f.Close()
+
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	runtime.GC()
 	if err := pprof.WriteHeapProfile(f); err != nil {

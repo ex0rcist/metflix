@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -44,7 +45,12 @@ func TestSignResponseMiddleware(t *testing.T) {
 	signedHandler.ServeHTTP(rr, req)
 
 	result := rr.Result()
-	defer result.Body.Close()
+	defer func() {
+		err := result.Body.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	hash := result.Header.Get("HashSHA256")
 	assert.NotEmpty(t, hash)
@@ -69,7 +75,12 @@ func TestSignResponseMiddlewareWithoutSecret(t *testing.T) {
 	signedHandler.ServeHTTP(rr, req)
 
 	result := rr.Result()
-	defer result.Body.Close()
+	defer func() {
+		err := result.Body.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	hash := result.Header.Get("HashSHA256")
 	assert.Empty(t, hash)
@@ -100,7 +111,12 @@ func TestCheckSignedRequestMiddleware(t *testing.T) {
 	checkSignedHandler.ServeHTTP(rr, req)
 
 	result := rr.Result()
-	defer result.Body.Close()
+	defer func() {
+		err := result.Body.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusOK, result.StatusCode)
 
@@ -126,7 +142,12 @@ func TestCheckSignedRequestMiddlewareInvalidSignature(t *testing.T) {
 	checkSignedHandler.ServeHTTP(rr, req)
 
 	result := rr.Result()
-	defer result.Body.Close()
+	defer func() {
+		err := result.Body.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusBadRequest, result.StatusCode)
 
@@ -150,7 +171,12 @@ func TestCheckSignedRequestMiddlewareWithoutSecret(t *testing.T) {
 	checkSignedHandler.ServeHTTP(rr, req)
 
 	result := rr.Result()
-	defer result.Body.Close()
+	defer func() {
+		err := result.Body.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	assert.Equal(t, http.StatusOK, result.StatusCode)
 

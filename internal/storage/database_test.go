@@ -146,6 +146,9 @@ func TestPostgresStorage_Close(t *testing.T) {
 
 	mockPool.On("Close").Return(nil)
 
-	storage.Close(ctx)
+	err := storage.Close(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mockPool.AssertExpectations(t)
 }

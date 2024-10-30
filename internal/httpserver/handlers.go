@@ -183,7 +183,7 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 // @Tags Metrics
 // @Router /updates [post]
 // @Summary Push list of metrics data as JSON
-// @ID update_metrics_batch
+// @ID metrics_json_update_list
 // @Accept  json
 // @Param request body []metrics.MetricExchange true "List of metrics to update."
 // @Success 200 {object} []metrics.MetricExchange

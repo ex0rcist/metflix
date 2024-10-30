@@ -9,6 +9,7 @@ import (
 	"github.com/klauspost/compress/gzip"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/logging"
 
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,10 @@ func TestDecompressor_Decompress_SupportedEncoding(t *testing.T) {
 		t.Fatalf("expected no error on writer.Write(), got %v", err)
 	}
 
-	writer.Close()
+	err = writer.Close()
+	if err != nil {
+		logging.LogError(err)
+	}
 
 	req := httptest.NewRequest(http.MethodPost, "/", &buf)
 	req.Header.Set("Content-Encoding", "gzip")
@@ -95,7 +99,11 @@ func TestDecompressor_Close(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error on writer.Write, got %v", err)
 	}
-	writer.Close()
+
+	err = writer.Close()
+	if err != nil {
+		logging.LogError(err)
+	}
 
 	req := httptest.NewRequest(http.MethodPost, "/", &buf)
 	req.Header.Set("Content-Encoding", "gzip")
