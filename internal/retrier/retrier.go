@@ -1,4 +1,4 @@
-package utils
+package retrier
 
 import (
 	"time"
@@ -6,6 +6,9 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/ex0rcist/metflix/internal/logging"
 )
+
+// Retrier option to configure retrier
+type RetryOption func(*Retrier)
 
 // Retrier service to make some retries
 type Retrier struct {
@@ -27,11 +30,23 @@ func (r Retrier) Run() error {
 	)
 }
 
-// Retrier constructor
-func NewRetrier(payloadFn func() error, retryIfFn func(err error) bool, delays []time.Duration) Retrier {
-	return Retrier{
+// RetryOption to add delays setting
+func WithDelays(delays []time.Duration) RetryOption {
+	return func(r *Retrier) {
+		r.delays = delays
+	}
+}
+
+// Constructor
+func New(payloadFn func() error, retryIfFn func(err error) bool, opts ...RetryOption) *Retrier {
+	r := &Retrier{
 		payloadFn: payloadFn,
 		retryIfFn: retryIfFn,
-		delays:    delays,
 	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
 }

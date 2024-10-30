@@ -179,17 +179,17 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 	}
 }
 
-// BatchUpdateMetricsJSON godoc
+// UpdateMetricsBatch godoc
 // @Tags Metrics
 // @Router /updates [post]
 // @Summary Push list of metrics data as JSON
-// @ID metrics_json_update_list
+// @ID update_metrics_batch
 // @Accept  json
 // @Param request body []metrics.MetricExchange true "List of metrics to update."
 // @Success 200 {object} []metrics.MetricExchange
 // @Failure 400 {string} string http.StatusBadRequest
 // @Failure 500 {string} string http.StatusInternalServerError
-func (r MetricResource) BatchUpdateMetricsJSON(rw http.ResponseWriter, req *http.Request) {
+func (r MetricResource) UpdateMetricsBatch(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
 	records, err := parseJSONMetricsList(req)

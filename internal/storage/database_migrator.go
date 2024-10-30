@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/utils"
+	"github.com/ex0rcist/metflix/internal/retrier"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -29,7 +29,9 @@ func NewDatabaseMigrator(dsn string, source string, retries int) DatabaseMigrato
 
 // Run migrations if any (with retries)
 func (m DatabaseMigrator) Run() error {
-	m.err = utils.NewRetrier(
+	delays := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+
+	m.err = retrier.New(
 		func() error {
 			logging.LogInfo("migrations: connecting to " + m.dsn)
 
@@ -45,11 +47,7 @@ func (m DatabaseMigrator) Run() error {
 		func(err error) bool {
 			return true
 		},
-		[]time.Duration{
-			1 * time.Second,
-			3 * time.Second,
-			5 * time.Second,
-		},
+		retrier.WithDelays(delays),
 	).Run()
 
 	if m.err != nil {

@@ -24,7 +24,7 @@ func TestPing(t *testing.T) {
 			pm := storage.NewPGXPoolMock()
 			pm.On("Ping", mock.Anything).Return(tt.err)
 
-			store := &storage.DatabaseStorage{Pool: pm}
+			store := &storage.PostgresStorage{Pool: pm}
 			pinger := NewPingerService(store)
 
 			err := pinger.Ping(context.Background())

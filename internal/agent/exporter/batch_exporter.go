@@ -11,6 +11,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/retrier"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/ex0rcist/metflix/pkg/metrics"
@@ -75,17 +76,15 @@ func (e *BatchExporter) Send() error {
 		return fmt.Errorf("cannot send empty buffer")
 	}
 
-	err := utils.NewRetrier(
+	delays := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+
+	err := retrier.New(
 		func() error { return e.doSend() },
 		func(err error) bool {
 			_, ok := err.(entities.RetriableError)
 			return ok
 		},
-		[]time.Duration{
-			1 * time.Second,
-			3 * time.Second,
-			5 * time.Second,
-		},
+		retrier.WithDelays(delays),
 	).Run()
 
 	e.Reset()

@@ -1,4 +1,4 @@
-package utils
+package retrier
 
 import (
 	"errors"
@@ -13,8 +13,7 @@ func TestRetrier_Success(t *testing.T) {
 	retryIfFn := func(err error) bool { return false }
 
 	delays := []time.Duration{time.Millisecond, time.Millisecond * 2}
-
-	retrier := NewRetrier(payloadFn, retryIfFn, delays)
+	retrier := New(payloadFn, retryIfFn, WithDelays(delays))
 
 	err := retrier.Run()
 	assert.NoError(t, err)
@@ -32,8 +31,7 @@ func TestRetrier_RetrySuccess(t *testing.T) {
 	retryIfFn := func(err error) bool { return true }
 
 	delays := []time.Duration{time.Millisecond, time.Millisecond * 2}
-
-	retrier := NewRetrier(payloadFn, retryIfFn, delays)
+	retrier := New(payloadFn, retryIfFn, WithDelays(delays))
 
 	err := retrier.Run()
 	assert.NoError(t, err)
@@ -49,8 +47,7 @@ func TestRetrier_Failure(t *testing.T) {
 	retryIfFn := func(err error) bool { return true }
 
 	delays := []time.Duration{time.Millisecond, time.Millisecond * 2, time.Millisecond * 3}
-
-	retrier := NewRetrier(payloadFn, retryIfFn, delays)
+	retrier := New(payloadFn, retryIfFn, WithDelays(delays))
 
 	err := retrier.Run()
 	assert.Error(t, err)

@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestDatabaseStorage_Push(t *testing.T) {
+func TestPostgresStorage_Push(t *testing.T) {
 	mockPool := NewPGXPoolMock()
-	storage := DatabaseStorage{Pool: mockPool}
+	storage := PostgresStorage{Pool: mockPool}
 
 	ctx := context.Background()
 	record := Record{Name: "testName", Value: metrics.Counter(123)}
@@ -34,9 +34,9 @@ func TestDatabaseStorage_Push(t *testing.T) {
 	}
 }
 
-func TestDatabaseStorage_PushList(t *testing.T) {
+func TestPostgresStorage_PushList(t *testing.T) {
 	mockPool := NewPGXPoolMock()
-	storage := DatabaseStorage{Pool: mockPool}
+	storage := PostgresStorage{Pool: mockPool}
 
 	ctx := context.Background()
 	data := map[string]Record{
@@ -56,9 +56,9 @@ func TestDatabaseStorage_PushList(t *testing.T) {
 	mockBatchResults.AssertExpectations(t)
 }
 
-func TestDatabaseStorage_Get(t *testing.T) {
+func TestPostgresStorage_Get(t *testing.T) {
 	mockPool := NewPGXPoolMock()
-	storage := DatabaseStorage{Pool: mockPool}
+	storage := PostgresStorage{Pool: mockPool}
 
 	ctx := context.Background()
 	expectedRecord := Record{Name: "testName", Value: metrics.Counter(123)}
@@ -80,9 +80,9 @@ func TestDatabaseStorage_Get(t *testing.T) {
 	mockRow.AssertExpectations(t)
 }
 
-func TestDatabaseStorage_List(t *testing.T) {
+func TestPostgresStorage_List(t *testing.T) {
 	mockPool := NewPGXPoolMock()
-	storage := DatabaseStorage{Pool: mockPool}
+	storage := PostgresStorage{Pool: mockPool}
 
 	ctx := context.Background()
 	expectedRecords := []Record{
@@ -125,9 +125,9 @@ func TestDatabaseStorage_List(t *testing.T) {
 	mockRows.AssertExpectations(t)
 }
 
-func TestDatabaseStorage_Ping(t *testing.T) {
+func TestPostgresStorage_Ping(t *testing.T) {
 	mockPool := NewPGXPoolMock()
-	storage := DatabaseStorage{Pool: mockPool}
+	storage := PostgresStorage{Pool: mockPool}
 
 	ctx := context.Background()
 	mockPool.On("Ping", ctx).Return(nil)
@@ -138,9 +138,9 @@ func TestDatabaseStorage_Ping(t *testing.T) {
 	mockPool.AssertExpectations(t)
 }
 
-func TestDatabaseStorage_Close(t *testing.T) {
+func TestPostgresStorage_Close(t *testing.T) {
 	mockPool := NewPGXPoolMock()
-	storage := DatabaseStorage{Pool: mockPool}
+	storage := PostgresStorage{Pool: mockPool}
 
 	ctx := context.Background()
 

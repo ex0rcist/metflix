@@ -72,7 +72,7 @@ func registerMetricsEndpoints(storageService storage.StorageService, router *chi
 
 	router.Post("/update/{metricKind}/{metricName}/{metricValue}", resource.UpdateMetric)
 	router.Post("/update", resource.UpdateMetricJSON)
-	router.Post("/updates", resource.BatchUpdateMetricsJSON)
+	router.Post("/updates", resource.UpdateMetricsBatch)
 
 	router.Get("/value/{metricKind}/{metricName}", resource.GetMetric)
 	router.Post("/value", resource.GetMetricJSON)
