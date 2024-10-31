@@ -208,6 +208,8 @@ func main() <span class="cov0" title="0">{
 		<pre class="file" id="file1" style="display: none">package main
 
 import (
+        "fmt"
+
         "github.com/ex0rcist/metflix/internal/logging"
         "github.com/ex0rcist/metflix/internal/server"
 )
@@ -220,7 +222,7 @@ var (
 
 func main() <span class="cov0" title="0">{
         logging.Setup()
-        logging.LogInfoF("starting server v%s [%s, #%s]...", buildVersion, buildDate, buildCommit)
+        fmt.Printf("Build version: %s\nBuild date: %s\nBuild commit: %s\n", buildVersion, buildDate, buildCommit)
 
         srv, err := server.New()
         if err != nil </span><span class="cov0" title="0">{
@@ -252,7 +254,10 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "contact": {},
+        "contact": {
+            "name": "Evgeniy Shuvalov",
+            "email": "evshuvalov@yandex.ru"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -417,7 +422,7 @@ const docTemplate = `{
                     "Metrics"
                 ],
                 "summary": "Push list of metrics data as JSON",
-                "operationId": "update_metrics_batch",
+                "operationId": "metrics_json_update_list",
                 "parameters": [
                     {
                         "description": "List of metrics to update.",
@@ -582,17 +587,27 @@ const docTemplate = `{
                 }
             }
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "\"Metrics API\"",
+            "name": "Metrics"
+        },
+        {
+            "description": "\"API to inspect service health state\"",
+            "name": "Healthcheck"
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &amp;swag.Spec{
-        Version:          "",
+        Version:          "1.0",
         Host:             "",
         BasePath:         "",
         Schemes:          []string{},
-        Title:            "",
-        Description:      "",
+        Title:            "Metrics collector API",
+        Description:      "Service for storing metrics data.",
         InfoInstanceName: "swagger",
         SwaggerTemplate:  docTemplate,
         LeftDelim:        "{{",
@@ -2027,7 +2042,7 @@ func (r MetricResource) UpdateMetricJSON(rw http.ResponseWriter, req *http.Reque
 // @Tags Metrics
 // @Router /updates [post]
 // @Summary Push list of metrics data as JSON
-// @ID metrics_update_batch
+// @ID metrics_json_update_list
 // @Accept  json
 // @Param request body []metrics.MetricExchange true "List of metrics to update."
 // @Success 200 {object} []metrics.MetricExchange

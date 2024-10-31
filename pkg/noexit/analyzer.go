@@ -9,6 +9,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// Initialize analysis.Analyzer
 var Analyzer = &analysis.Analyzer{
 	Name: "noexit",
 	Doc:  "forbids usage of os.Exit in the main function of main package",
