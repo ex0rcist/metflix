@@ -2,7 +2,9 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -29,12 +31,12 @@ type Agent struct {
 
 // Agent config.
 type Config struct {
-	Address        entities.Address  `env:"ADDRESS"`
-	PollInterval   int               `env:"POLL_INTERVAL"`
-	ReportInterval int               `env:"REPORT_INTERVAL"`
-	RateLimit      int               `env:"RATE_LIMIT"`
-	Secret         entities.Secret   `env:"KEY"`
-	PublicKeyPath  entities.FilePath `env:"CRYPTO_KEY"`
+	Address        entities.Address  `env:"ADDRESS" json:"address"`
+	PollInterval   int               `env:"POLL_INTERVAL" json:"poll_interval"`
+	ReportInterval int               `env:"REPORT_INTERVAL" json:"report_interval"`
+	RateLimit      int               `env:"RATE_LIMIT" json:"-"`
+	Secret         entities.Secret   `env:"KEY" json:"key"`
+	PublicKeyPath  entities.FilePath `env:"CRYPTO_KEY" json:"crypto_key"`
 }
 
 // Constructor.
@@ -236,11 +238,20 @@ func parseConfig(config *Config) error {
 	publicKeyPath := config.PublicKeyPath
 	pflag.VarP(&publicKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
 
+	configPath := entities.FilePath("")
+	pflag.VarP(&configPath, "config", "c", "path to configuration file in JSON format")
+
 	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&config.ReportInterval, "report-interval", "r", config.ReportInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&config.RateLimit, "rate-limit", "l", config.RateLimit, "number of max simultaneous requests to server")
 
 	pflag.Parse()
+
+	if len(configPath) != 0 {
+		if err := loadConfigFromFile(configPath, config); err != nil {
+			return err
+		}
+	}
 
 	// because VarP gets non-pointer value, set it manually
 	pflag.Visit(func(f *pflag.Flag) {
@@ -256,6 +267,19 @@ func parseConfig(config *Config) error {
 
 	if err := env.Parse(config); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func loadConfigFromFile(src entities.FilePath, dst *Config) error {
+	data, err := os.ReadFile(src.String())
+	if err != nil {
+		return fmt.Errorf("agent.loadConfigFromFile - os.ReadFile: %w", err)
+	}
+
+	if err := json.Unmarshal(data, dst); err != nil {
+		return fmt.Errorf("agent.loadConfigFromFile - json.Unmarshal: %w", err)
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -34,14 +35,14 @@ type Server struct {
 
 // Backend config
 type Config struct {
-	Address         entities.Address  `env:"ADDRESS"`
-	StoreInterval   int               `env:"STORE_INTERVAL"`
-	StorePath       string            `env:"FILE_STORAGE_PATH"`
-	RestoreOnStart  bool              `env:"RESTORE"`
-	DatabaseDSN     string            `env:"DATABASE_DSN"`
-	Secret          entities.Secret   `env:"KEY"`
-	ProfilerAddress entities.Address  `env:"PROFILER_ADDRESS"`
-	PrivateKeyPath  entities.FilePath `env:"CRYPTO_KEY"`
+	Address         entities.Address  `env:"ADDRESS" json:"address"`
+	StoreInterval   int               `env:"STORE_INTERVAL" json:"store_interval"`
+	StorePath       string            `env:"FILE_STORAGE_PATH" json:"store_file"`
+	RestoreOnStart  bool              `env:"RESTORE" json:"restore"`
+	DatabaseDSN     string            `env:"DATABASE_DSN" json:"database_dsn"`
+	Secret          entities.Secret   `env:"KEY" json:"key"`
+	ProfilerAddress entities.Address  `env:"PROFILER_ADDRESS" json:"profiler_address"`
+	PrivateKeyPath  entities.FilePath `env:"CRYPTO_KEY" json:"crypto_key"`
 }
 
 // Server constructor
@@ -201,6 +202,9 @@ func parseFlags(config *Config, progname string, args []string) error {
 	privateKeyPath := config.PrivateKeyPath
 	flags.VarP(&privateKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
 
+	configPath := entities.FilePath("")
+	flags.VarP(&configPath, "config", "c", "path to configuration file in JSON format")
+
 	// define flags
 	flags.IntVarP(&config.StoreInterval, "store-interval", "i", config.StoreInterval, "interval (s) for dumping metrics to the disk, zero value means saving after each request")
 	flags.StringVarP(&config.StorePath, "store-file", "f", config.StorePath, "path to file to store metrics")
@@ -210,6 +214,12 @@ func parseFlags(config *Config, progname string, args []string) error {
 	err := flags.Parse(args)
 	if err != nil {
 		return err
+	}
+
+	if len(configPath) != 0 {
+		if err := loadConfigFromFile(configPath, config); err != nil {
+			return err
+		}
 	}
 
 	// fill values
@@ -263,4 +273,17 @@ func newDataStorage(config *Config) (storage.MetricsStorage, error) {
 	default:
 		return nil, fmt.Errorf("unknown storage type")
 	}
+}
+
+func loadConfigFromFile(src entities.FilePath, dst *Config) error {
+	data, err := os.ReadFile(src.String())
+	if err != nil {
+		return fmt.Errorf("server.loadConfigFromFile - os.ReadFile: %w", err)
+	}
+
+	if err := json.Unmarshal(data, dst); err != nil {
+		return fmt.Errorf("server.loadConfigFromFile - json.Unmarshal: %w", err)
+	}
+
+	return nil
 }

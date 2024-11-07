@@ -1,0 +1,8 @@
+{
+    "address": "localhost:8080",
+    "restore": true,
+    "store_interval": 1,
+    "store_file": "./metflix.db",
+    "database_dsn": "postgres://cm:cm@localhost:5432/metflix?sslmode=disable",
+    "crypto_key": "./example_key.pem"
+}
