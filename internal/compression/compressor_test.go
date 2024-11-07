@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -28,7 +29,12 @@ func TestCompressor_Write_SupportedContent(t *testing.T) {
 	compressor.Close()
 
 	resp := recorder.Result()
-	defer resp.Body.Close()
+
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
 
 	if resp.Header.Get("Content-Encoding") != "gzip" {
 		t.Fatalf("expected Content-Encoding to be gzip, got %s", resp.Header.Get("Content-Encoding"))
@@ -38,7 +44,12 @@ func TestCompressor_Write_SupportedContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error creating gzip reader, got %v", err)
 	}
-	defer gr.Close()
+
+	defer func() {
+		if closeErr := gr.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
 
 	uncompressedData := new(bytes.Buffer)
 	_, err = uncompressedData.ReadFrom(gr)
@@ -66,7 +77,11 @@ func TestCompressor_Write_UnsupportedContent(t *testing.T) {
 	}
 
 	resp := recorder.Result()
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
 
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		t.Fatalf("expected Content-Encoding to not be gzip")

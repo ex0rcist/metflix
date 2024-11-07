@@ -11,6 +11,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/compression"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/retrier"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/ex0rcist/metflix/pkg/metrics"
@@ -116,20 +117,18 @@ func (e *LimitedExporter) spawnWorkers(numWorkers int) {
 }
 
 func (e *LimitedExporter) worker(id int) {
+	delays := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+
 	for mex := range e.jobs {
 		logging.LogDebugF("worker #%d started job", id)
 
-		err := utils.NewRetrier(
+		err := retrier.New(
 			func() error { return e.doSend(mex) },
 			func(err error) bool {
 				_, ok := err.(entities.RetriableError)
 				return ok
 			},
-			[]time.Duration{
-				1 * time.Second,
-				3 * time.Second,
-				5 * time.Second,
-			},
+			retrier.WithDelays(delays),
 		).Run()
 
 		if err != nil {
@@ -169,10 +168,10 @@ func (e *LimitedExporter) doSend(mex metrics.MetricExchange) error {
 	req.Header.Set("X-Request-Id", requestID)
 
 	if e.signer != nil {
-		signature, err := e.signer.CalculateSignature(payload.Bytes())
-		if err != nil {
-			logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during signing", err.Error())
-			return err
+		signature, signErr := e.signer.CalculateSignature(payload.Bytes())
+		if signErr != nil {
+			logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during signing", signErr.Error())
+			return signErr
 		}
 
 		req.Header.Set("HashSHA256", signature)
@@ -186,7 +185,12 @@ func (e *LimitedExporter) doSend(mex metrics.MetricExchange) error {
 		return entities.RetriableError{Err: err, RetryAfter: 10 * time.Second}
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error reading response body", err.Error())

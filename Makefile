@@ -6,7 +6,7 @@ SERVER_VERSION ?= 0.1.0
 BUILD_DATE ?= $(shell date +%F\ %H:%M:%S)
 BUILD_COMMIT ?= $(shell git rev-parse --short HEAD)
 
-build: agent server
+build: agent server staticlint
 .PHONY: build
 
 agent: ## build agent
@@ -22,7 +22,7 @@ agent: ## build agent
 
 server: ## build server
 	rm -rf $(API_DOCS)
-	swag init -g ./internal/httpserver/handlers.go --output $(API_DOCS)
+	swag init -g ./internal/httpserver/router.go --output docs/api
 
 	go build \
 		-ldflags "\
@@ -33,6 +33,10 @@ server: ## build server
 		-o cmd/$@/$@ \
 		cmd/$@/*.go
 .PHONY: server
+
+staticlint: ## build static lint
+	go build -o cmd/$@/$@ cmd/$@/*.go
+.PHONY: staticlint
 
 clean: ## remove build artifacts
 	rm -rf cmd/agent/agent cmd/server/server cmd/staticlint/staticlint

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/server"
 )
@@ -13,7 +15,7 @@ var (
 
 func main() {
 	logging.Setup()
-	logging.LogInfoF("starting server v%s [%s, #%s]...", buildVersion, buildDate, buildCommit)
+	fmt.Printf("Build version: %s\nBuild date: %s\nBuild commit: %s\n", buildVersion, buildDate, buildCommit)
 
 	srv, err := server.New()
 	if err != nil {

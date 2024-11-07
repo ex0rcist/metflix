@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -19,7 +20,12 @@ func TestPack_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error creating gzip reader, got %v", err)
 	}
-	defer reader.Close()
+
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
 
 	unpackedData, err := io.ReadAll(reader)
 	if err != nil {

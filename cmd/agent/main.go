@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/ex0rcist/metflix/internal/agent"
 	"github.com/ex0rcist/metflix/internal/logging"
 )
@@ -13,8 +15,7 @@ var (
 
 func main() {
 	logging.Setup()
-
-	logging.LogInfoF("starting agent v%s [%s, #%s]...", buildVersion, buildDate, buildCommit)
+	fmt.Printf("Build version: %s\nBuild date: %s\nBuild commit: %s\n", buildVersion, buildDate, buildCommit)
 
 	agnt, err := agent.New()
 	if err != nil {

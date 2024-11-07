@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ex0rcist/metflix/internal/entities"
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/ex0rcist/metflix/pkg/metrics"
@@ -29,7 +30,11 @@ func testRequest(t *testing.T, router http.Handler, method, path string, payload
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
 
 	contentType := resp.Header.Get("Content-Type")
 

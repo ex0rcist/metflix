@@ -14,10 +14,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var _ MetricsStorage = DatabaseStorage{}
+var _ MetricsStorage = PostgresStorage{}
 
-// DB Storage
-type DatabaseStorage struct {
+// PostgresStorage
+type PostgresStorage struct {
 	Pool PGXPool
 }
 
@@ -37,7 +37,7 @@ func (tracer *dbQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, 
 }
 
 // DatabseStorage constructor
-func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
+func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
 	migrator := NewDatabaseMigrator(dsn, "file://db/migrate", 5)
 
 	if err := migrator.Run(); err != nil {
@@ -57,11 +57,11 @@ func NewDatabaseStorage(dsn string) (*DatabaseStorage, error) {
 		return nil, fmt.Errorf("pgxpool init failed: %w", err)
 	}
 
-	return &DatabaseStorage{Pool: pool}, nil
+	return &PostgresStorage{Pool: pool}, nil
 }
 
 // Push record to storage
-func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) error {
+func (d PostgresStorage) Push(ctx context.Context, key string, record Record) error {
 	tx, err := d.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("db storage Push() -> Begin() error: %w", err)
@@ -81,7 +81,7 @@ func (d DatabaseStorage) Push(ctx context.Context, key string, record Record) er
 }
 
 // Push list of records to storage
-func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) error {
+func (d PostgresStorage) PushList(ctx context.Context, data map[string]Record) error {
 	batch := new(pgx.Batch)
 	sql := "INSERT INTO metrics(id, name, kind, value) values ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET value = $4"
 	for id, record := range data {
@@ -105,7 +105,7 @@ func (d DatabaseStorage) PushList(ctx context.Context, data map[string]Record) e
 }
 
 // Get a record from storage
-func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) {
+func (d PostgresStorage) Get(ctx context.Context, key string) (Record, error) {
 	var (
 		name   string
 		kind   string
@@ -138,10 +138,14 @@ func (d DatabaseStorage) Get(ctx context.Context, key string) (Record, error) {
 }
 
 // Get list of records from storage
-func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) {
+func (d PostgresStorage) List(ctx context.Context) ([]Record, error) {
 	rows, err := d.Pool.Query(ctx, "SELECT name, kind, value FROM metrics")
 	if err != nil {
 		return nil, fmt.Errorf("db storage List() error: %w", err)
+	}
+
+	if rowErr := rows.Err(); rowErr != nil {
+		return nil, fmt.Errorf("db storage List() error: %w", rowErr)
 	}
 
 	defer rows.Close()
@@ -176,7 +180,7 @@ func (d DatabaseStorage) List(ctx context.Context) ([]Record, error) {
 }
 
 // Healthcheck
-func (d DatabaseStorage) Ping(ctx context.Context) error {
+func (d PostgresStorage) Ping(ctx context.Context) error {
 	if err := d.Pool.Ping(ctx); err != nil {
 		return fmt.Errorf("db storage Ping() error: %w", err)
 	}
@@ -185,7 +189,7 @@ func (d DatabaseStorage) Ping(ctx context.Context) error {
 }
 
 // Close storage pool
-func (d DatabaseStorage) Close(ctx context.Context) error {
+func (d PostgresStorage) Close(ctx context.Context) error {
 	d.Pool.Close()
 	return nil
 }

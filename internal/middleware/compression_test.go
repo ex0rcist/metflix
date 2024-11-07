@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -43,7 +44,10 @@ func TestDecompressRequest_Success(t *testing.T) {
 		t.Fatalf("expected no error writing writer.Write(), got %v", err)
 	}
 
-	writer.Close()
+	err = writer.Close()
+	if err != nil {
+		logging.LogError(err)
+	}
 
 	req := httptest.NewRequest(http.MethodPost, "/", &buf)
 	req.Header.Set("Content-Encoding", "gzip")
@@ -137,7 +141,12 @@ func TestCompressResponse_Success(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	resp := rr.Result()
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	if resp.Header.Get("Content-Encoding") != "gzip" {
 		t.Fatalf("expected Content-Encoding to be gzip, got %s", resp.Header.Get("Content-Encoding"))
@@ -147,7 +156,12 @@ func TestCompressResponse_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error creating gzip reader, got %v", err)
 	}
-	defer gr.Close()
+
+	defer func() {
+		if closeErr := gr.Close(); closeErr != nil {
+			logging.LogError(closeErr)
+		}
+	}()
 
 	decompressedData, err := io.ReadAll(gr)
 	if err != nil {
@@ -177,7 +191,12 @@ func TestCompressResponse_NoCompressionRequested(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	resp := rr.Result()
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			logging.LogError(err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

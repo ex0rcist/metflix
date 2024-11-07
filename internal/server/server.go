@@ -238,7 +238,7 @@ func newDataStorage(config *Config) (storage.MetricsStorage, error) {
 	case storage.KindFile:
 		return storage.NewFileStorage(config.StorePath, config.StoreInterval, config.RestoreOnStart)
 	case storage.KindDatabase:
-		return storage.NewDatabaseStorage(config.DatabaseDSN)
+		return storage.NewPostgresStorage(config.DatabaseDSN)
 	default:
 		return nil, fmt.Errorf("unknown storage type")
 	}

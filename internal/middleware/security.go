@@ -84,7 +84,12 @@ func CheckSignedRequest(next http.Handler, secret entities.Secret) http.Handler 
 		}
 
 		bodyBytes, err := io.ReadAll(r.Body)
-		r.Body.Close() //  must close
+		defer func() {
+			if closeErr := r.Body.Close(); closeErr != nil {
+				logging.LogError(closeErr)
+			}
+		}()
+
 		if err != nil {
 			logging.LogErrorCtx(ctx, fmt.Errorf("failed to read request body"))
 			http.Error(w, "failed to read request body", http.StatusInternalServerError)
