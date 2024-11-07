@@ -12,7 +12,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/retrier"
-	"github.com/ex0rcist/metflix/internal/services"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/ex0rcist/metflix/pkg/metrics"
 )
@@ -21,9 +21,10 @@ var _ Exporter = (*LimitedExporter)(nil)
 
 // An exporter to send metrics one-by-one in parallel.
 type LimitedExporter struct {
-	baseURL *entities.Address
-	client  *http.Client
-	signer  services.Signer
+	baseURL   *entities.Address
+	client    *http.Client
+	signer    security.Signer
+	publicKey security.PublicKey
 
 	buffer []metrics.MetricExchange
 	jobs   chan metrics.MetricExchange
@@ -31,16 +32,17 @@ type LimitedExporter struct {
 }
 
 // Constructor.
-func NewLimitedExporter(baseURL *entities.Address, signer services.Signer, numWorkers int) *LimitedExporter {
+func NewLimitedExporter(baseURL *entities.Address, signer security.Signer, numWorkers int, publicKey security.PublicKey) *LimitedExporter {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
 
 	exporter := &LimitedExporter{
-		baseURL: baseURL,
-		client:  client,
-		signer:  signer,
-		jobs:    make(chan metrics.MetricExchange, 30),
+		baseURL:   baseURL,
+		client:    client,
+		signer:    signer,
+		publicKey: publicKey,
+		jobs:      make(chan metrics.MetricExchange, 30),
 	}
 
 	exporter.spawnWorkers(numWorkers)
@@ -153,6 +155,13 @@ func (e *LimitedExporter) doSend(mex metrics.MetricExchange) error {
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during compression", err.Error())
 		return err
+	}
+
+	if e.publicKey != nil {
+		payload, err = security.Encrypt(io.Reader(payload), e.publicKey)
+		if err != nil {
+			return err
+		}
 	}
 
 	url := "http://" + e.baseURL.String() + "/update"

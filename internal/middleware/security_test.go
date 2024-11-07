@@ -9,7 +9,7 @@ import (
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/services"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -91,7 +91,7 @@ func TestSignResponseMiddlewareWithoutSecret(t *testing.T) {
 
 func TestCheckSignedRequestMiddleware(t *testing.T) {
 	secret := entities.Secret("my-secret-key")
-	signer := services.NewSignerService(secret)
+	signer := security.NewSignerService(secret)
 	body := []byte("test request")
 
 	signature, err := signer.CalculateSignature(body)

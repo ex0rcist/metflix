@@ -12,7 +12,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/retrier"
-	"github.com/ex0rcist/metflix/internal/services"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/ex0rcist/metflix/pkg/metrics"
 )
@@ -21,24 +21,26 @@ var _ Exporter = (*BatchExporter)(nil)
 
 // Batch exporter to optimize requests count.
 type BatchExporter struct {
-	baseURL *entities.Address
-	client  *http.Client
-	signer  services.Signer
+	baseURL   *entities.Address
+	client    *http.Client
+	signer    security.Signer
+	publicKey security.PublicKey
 
 	buffer []metrics.MetricExchange
 	err    error
 }
 
 // Constructor.
-func NewBatchExporter(baseURL *entities.Address, signer services.Signer) *BatchExporter {
+func NewBatchExporter(baseURL *entities.Address, signer security.Signer, publicKey security.PublicKey) *BatchExporter {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
 
 	return &BatchExporter{
-		baseURL: baseURL,
-		client:  client,
-		signer:  signer,
+		baseURL:   baseURL,
+		client:    client,
+		signer:    signer,
+		publicKey: publicKey,
 	}
 }
 
@@ -121,6 +123,13 @@ func (e *BatchExporter) doSend() error {
 	if err != nil {
 		logging.LogErrorCtx(ctx, entities.ErrMetricReport, "error during compression", err.Error())
 		return err
+	}
+
+	if e.publicKey != nil {
+		payload, err = security.Encrypt(io.Reader(payload), e.publicKey)
+		if err != nil {
+			return err
+		}
 	}
 
 	url := "http://" + e.baseURL.String() + "/updates"

@@ -8,7 +8,7 @@ import (
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/services"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/go-chi/chi/middleware"
 )
 
@@ -45,7 +45,7 @@ func SignResponse(next http.Handler, secret entities.Secret) http.Handler {
 		// pass the custom ResponseWriter to the next handler
 		next.ServeHTTP(crw, r)
 
-		signer := services.NewSignerService(secret)
+		signer := security.NewSignerService(secret)
 		signature, _ := signer.CalculateSignature(bodyBuffer.Bytes())
 
 		w.Header().Set("HashSHA256", signature)
@@ -96,7 +96,7 @@ func CheckSignedRequest(next http.Handler, secret entities.Secret) http.Handler 
 			return
 		}
 
-		signer := services.NewSignerService(secret)
+		signer := security.NewSignerService(secret)
 		ok, _ := signer.VerifySignature(bodyBytes, hash)
 		if !ok {
 			logging.LogErrorCtx(ctx, fmt.Errorf("failed to verify request signature"))
@@ -107,6 +107,27 @@ func CheckSignedRequest(next http.Handler, secret entities.Secret) http.Handler 
 		logging.LogDebugCtx(ctx, "got correct signature")
 
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Decrypt request body using RSA.
+func DecryptRequest(next http.Handler, key security.PrivateKey) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if key == nil { // skip middleware entirely
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		msg, err := security.Decrypt(r.Body, key)
+		if err != nil {
+			logging.LogError(err, "error decoding request")
+			http.Error(w, "decrypt failed", http.StatusBadRequest)
+
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewReader(msg.Bytes()))
 		next.ServeHTTP(w, r)
 	})
 }

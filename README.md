@@ -30,3 +30,12 @@ git fetch template && git checkout template/main .github
 При мёрже ветки с инкрементом в основную ветку `main` будут запускаться все автотесты.
 
 Подробнее про локальный и автоматический запуск читайте в [README автотестов](https://github.com/Yandex-Practicum/go-autotests).
+
+
+
+
+openssl genpkey -algorithm RSA -out example_key.pem -pkeyopt rsa_keygen_bits:2048
+openssl rsa -in example_key.pem -pubout -out example_key.pub.pem
+
+
+go run cmd/server/main.go --crypto-key=/Users/ex0rcist/projects/go/yp/metflix/key_example

@@ -14,6 +14,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/httpserver"
 	"github.com/ex0rcist/metflix/internal/logging"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 	"github.com/spf13/pflag"
@@ -28,17 +29,19 @@ type Server struct {
 	profiler   *ProfilerServer
 	storage    storage.MetricsStorage
 	router     http.Handler
+	privateKey security.PrivateKey
 }
 
 // Backend config
 type Config struct {
-	Address         entities.Address `env:"ADDRESS"`
-	StoreInterval   int              `env:"STORE_INTERVAL"`
-	StorePath       string           `env:"FILE_STORAGE_PATH"`
-	RestoreOnStart  bool             `env:"RESTORE"`
-	DatabaseDSN     string           `env:"DATABASE_DSN"`
-	Secret          entities.Secret  `env:"KEY"`
-	ProfilerAddress entities.Address `env:"PROFILER_ADDRESS"`
+	Address         entities.Address  `env:"ADDRESS"`
+	StoreInterval   int               `env:"STORE_INTERVAL"`
+	StorePath       string            `env:"FILE_STORAGE_PATH"`
+	RestoreOnStart  bool              `env:"RESTORE"`
+	DatabaseDSN     string            `env:"DATABASE_DSN"`
+	Secret          entities.Secret   `env:"KEY"`
+	ProfilerAddress entities.Address  `env:"PROFILER_ADDRESS"`
+	PrivateKeyPath  entities.FilePath `env:"CRYPTO_KEY"`
 }
 
 // Server constructor
@@ -60,9 +63,17 @@ func New() (*Server, error) {
 		return nil, err
 	}
 
+	var privateKey security.PrivateKey
+	if len(config.PrivateKeyPath) != 0 {
+		privateKey, err = security.NewPrivateKey(config.PrivateKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("server - New - security.NewPrivateKey: %w", err)
+		}
+	}
+
 	storageService := storage.NewService(dataStorage)
 	pingerService := services.NewPingerService(dataStorage)
-	router := httpserver.NewRouter(storageService, pingerService, config.Secret)
+	router := httpserver.NewRouter(storageService, pingerService, config.Secret, privateKey)
 
 	httpServer := httpserver.New(router, config.Address)
 	pprofiler := NewProfilerServer(config.ProfilerAddress)
@@ -73,6 +84,7 @@ func New() (*Server, error) {
 		storage:    dataStorage,
 		router:     router,
 		profiler:   pprofiler,
+		privateKey: privateKey,
 	}, nil
 }
 
@@ -139,6 +151,10 @@ func (s *Server) String() string {
 		str = append(str, fmt.Sprintf("secret=%s", s.config.Secret))
 	}
 
+	if len(s.config.PrivateKeyPath) > 0 {
+		str = append(str, fmt.Sprintf("private-key=%v", s.config.PrivateKeyPath))
+	}
+
 	return "server config: " + strings.Join(str, "; ")
 }
 
@@ -182,6 +198,9 @@ func parseFlags(config *Config, progname string, args []string) error {
 	secret := config.Secret
 	flags.VarP(&secret, "secret", "k", "a key to sign outgoing data")
 
+	privateKeyPath := config.PrivateKeyPath
+	flags.VarP(&privateKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
+
 	// define flags
 	flags.IntVarP(&config.StoreInterval, "store-interval", "i", config.StoreInterval, "interval (s) for dumping metrics to the disk, zero value means saving after each request")
 	flags.StringVarP(&config.StorePath, "store-file", "f", config.StorePath, "path to file to store metrics")
@@ -200,6 +219,8 @@ func parseFlags(config *Config, progname string, args []string) error {
 			config.Address = address
 		case "secret":
 			config.Secret = secret
+		case "crypto-key":
+			config.PrivateKeyPath = privateKeyPath
 		}
 	})
 

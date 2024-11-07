@@ -11,7 +11,7 @@ import (
 	"github.com/ex0rcist/metflix/internal/agent/exporter"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/services"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/spf13/pflag"
 )
@@ -22,16 +22,19 @@ type Agent struct {
 	Stats    *Stats
 	Exporter exporter.Exporter
 
+	publicKey security.PublicKey
+
 	wg sync.WaitGroup
 }
 
 // Agent config.
 type Config struct {
-	Address        entities.Address `env:"ADDRESS"`
-	PollInterval   int              `env:"POLL_INTERVAL"`
-	ReportInterval int              `env:"REPORT_INTERVAL"`
-	RateLimit      int              `env:"RATE_LIMIT"`
-	Secret         entities.Secret  `env:"KEY"`
+	Address        entities.Address  `env:"ADDRESS"`
+	PollInterval   int               `env:"POLL_INTERVAL"`
+	ReportInterval int               `env:"REPORT_INTERVAL"`
+	RateLimit      int               `env:"RATE_LIMIT"`
+	Secret         entities.Secret   `env:"KEY"`
+	PublicKeyPath  entities.FilePath `env:"CRYPTO_KEY"`
 }
 
 // Constructor.
@@ -48,15 +51,24 @@ func New() (*Agent, error) {
 		return nil, err
 	}
 
-	exporter, err := newMetricsExporter(config)
+	var key security.PublicKey
+	if len(config.PublicKeyPath) != 0 {
+		key, err = security.NewPublicKey(config.PublicKeyPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	exporter, err := newMetricsExporter(config, key)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Agent{
-		Config:   config,
-		Stats:    NewStats(),
-		Exporter: exporter,
+		Config:    config,
+		Stats:     NewStats(),
+		Exporter:  exporter,
+		publicKey: key,
 	}, nil
 }
 
@@ -171,6 +183,10 @@ func (c Config) String() string {
 		str = append(str, fmt.Sprintf("secret=%v", c.Secret))
 	}
 
+	if len(c.PublicKeyPath) > 0 {
+		str = append(str, fmt.Sprintf("public-key=%v", c.PublicKeyPath))
+	}
+
 	return "agent config: " + strings.Join(str, "; ")
 }
 
@@ -187,22 +203,22 @@ func detectExporterKind(c *Config) string {
 	return ek
 }
 
-func newMetricsExporter(config *Config) (exporter.Exporter, error) {
+func newMetricsExporter(config *Config, publicKey security.PublicKey) (exporter.Exporter, error) {
 	var exp exporter.Exporter
-	var signer services.Signer
+	var signer security.Signer
 	var err error
 
 	if len(config.Secret) > 0 {
-		signer = services.NewSignerService(config.Secret)
+		signer = security.NewSignerService(config.Secret)
 	}
 
 	exporterKind := detectExporterKind(config)
 
 	switch exporterKind {
 	case exporter.KindLimited:
-		exp = exporter.NewLimitedExporter(&config.Address, signer, config.RateLimit)
+		exp = exporter.NewLimitedExporter(&config.Address, signer, config.RateLimit, publicKey)
 	case exporter.KindBatch:
-		exp = exporter.NewBatchExporter(&config.Address, signer)
+		exp = exporter.NewBatchExporter(&config.Address, signer, publicKey)
 	default:
 		exp, err = nil, fmt.Errorf("unknown exporter type")
 	}
@@ -217,6 +233,9 @@ func parseConfig(config *Config) error {
 	secret := config.Secret
 	pflag.VarP(&secret, "secret", "k", "a key to sign outgoing data")
 
+	publicKeyPath := config.PublicKeyPath
+	pflag.VarP(&publicKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
+
 	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&config.ReportInterval, "report-interval", "r", config.ReportInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&config.RateLimit, "rate-limit", "l", config.RateLimit, "number of max simultaneous requests to server")
@@ -230,6 +249,8 @@ func parseConfig(config *Config) error {
 			config.Address = address
 		case "secret":
 			config.Secret = secret
+		case "crypto-key":
+			config.PublicKeyPath = publicKeyPath
 		}
 	})
 
