@@ -229,6 +229,11 @@ func newMetricsExporter(config *Config, publicKey security.PublicKey) (exporter.
 }
 
 func parseConfig(config *Config) error {
+	err := tryLoadJSONConfig(config)
+	if err != nil {
+		return err
+	}
+
 	address := config.Address
 	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
 
@@ -238,7 +243,7 @@ func parseConfig(config *Config) error {
 	publicKeyPath := config.PublicKeyPath
 	pflag.VarP(&publicKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
 
-	configPath := entities.FilePath("")
+	configPath := entities.FilePath("") // register var for compatibility
 	pflag.VarP(&configPath, "config", "c", "path to configuration file in JSON format")
 
 	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
@@ -247,13 +252,6 @@ func parseConfig(config *Config) error {
 
 	pflag.Parse()
 
-	if len(configPath) != 0 {
-		if err := loadConfigFromFile(configPath, config); err != nil {
-			return err
-		}
-	}
-
-	// because VarP gets non-pointer value, set it manually
 	pflag.Visit(func(f *pflag.Flag) {
 		switch f.Name {
 		case "address":
@@ -267,6 +265,25 @@ func parseConfig(config *Config) error {
 
 	if err := env.Parse(config); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func tryLoadJSONConfig(dst *Config) error {
+	var configArg string
+	for i, arg := range os.Args {
+		if (arg == "-c" || arg == "--config") && i+1 < len(os.Args) {
+			configArg = os.Args[i+1]
+			break
+		}
+	}
+
+	if len(configArg) > 0 {
+		err := loadConfigFromFile(entities.FilePath(configArg), dst)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

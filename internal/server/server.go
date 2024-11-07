@@ -191,6 +191,11 @@ func parseConfig(config *Config) error {
 }
 
 func parseFlags(config *Config, progname string, args []string) error {
+	err := tryLoadJSONConfig(config)
+	if err != nil {
+		return err
+	}
+
 	flags := pflag.NewFlagSet(progname, pflag.ContinueOnError)
 
 	address := config.Address
@@ -202,7 +207,7 @@ func parseFlags(config *Config, progname string, args []string) error {
 	privateKeyPath := config.PrivateKeyPath
 	flags.VarP(&privateKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
 
-	configPath := entities.FilePath("")
+	configPath := entities.FilePath("") // register var for compatibility
 	flags.VarP(&configPath, "config", "c", "path to configuration file in JSON format")
 
 	// define flags
@@ -211,15 +216,9 @@ func parseFlags(config *Config, progname string, args []string) error {
 	flags.BoolVarP(&config.RestoreOnStart, "restore", "r", config.RestoreOnStart, "whether to restore state on startup")
 	flags.StringVarP(&config.DatabaseDSN, "database", "d", config.DatabaseDSN, "PostgreSQL database DSN")
 
-	err := flags.Parse(args)
-	if err != nil {
-		return err
-	}
-
-	if len(configPath) != 0 {
-		if err := loadConfigFromFile(configPath, config); err != nil {
-			return err
-		}
+	pErr := flags.Parse(args)
+	if pErr != nil {
+		return pErr
 	}
 
 	// fill values
@@ -273,6 +272,25 @@ func newDataStorage(config *Config) (storage.MetricsStorage, error) {
 	default:
 		return nil, fmt.Errorf("unknown storage type")
 	}
+}
+
+func tryLoadJSONConfig(dst *Config) error {
+	var configArg string
+	for i, arg := range os.Args {
+		if (arg == "-c" || arg == "--config") && i+1 < len(os.Args) {
+			configArg = os.Args[i+1]
+			break
+		}
+	}
+
+	if len(configArg) > 0 {
+		err := loadConfigFromFile(entities.FilePath(configArg), dst)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func loadConfigFromFile(src entities.FilePath, dst *Config) error {
