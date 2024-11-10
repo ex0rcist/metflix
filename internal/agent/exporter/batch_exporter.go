@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,13 +26,14 @@ type BatchExporter struct {
 	client    *http.Client
 	signer    security.Signer
 	publicKey security.PublicKey
+	context   context.Context
 
 	buffer []metrics.MetricExchange
 	err    error
 }
 
 // Constructor.
-func NewBatchExporter(baseURL *entities.Address, signer security.Signer, publicKey security.PublicKey) *BatchExporter {
+func NewBatchExporter(ctx context.Context, baseURL *entities.Address, signer security.Signer, publicKey security.PublicKey) *BatchExporter {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
@@ -39,6 +41,7 @@ func NewBatchExporter(baseURL *entities.Address, signer security.Signer, publicK
 	return &BatchExporter{
 		baseURL:   baseURL,
 		client:    client,
+		context:   ctx,
 		signer:    signer,
 		publicKey: publicKey,
 	}
@@ -87,7 +90,7 @@ func (e *BatchExporter) Send() error {
 			return ok
 		},
 		retrier.WithDelays(delays),
-	).Run()
+	).Run(e.context)
 
 	e.Reset()
 

@@ -1,6 +1,7 @@
 package retrier
 
 import (
+	"context"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -18,7 +19,7 @@ type Retrier struct {
 }
 
 // Run, Forest
-func (r Retrier) Run() error {
+func (r Retrier) Run(ctx context.Context) error {
 	return retry.Do(
 		r.payloadFn,
 		retry.RetryIf(r.retryIfFn),
@@ -27,6 +28,7 @@ func (r Retrier) Run() error {
 			return r.delays[n]
 		}),
 		retry.Attempts(uint(len(r.delays))+1),
+		retry.Context(ctx),
 	)
 }
 

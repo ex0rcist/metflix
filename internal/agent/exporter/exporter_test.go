@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -56,7 +57,7 @@ func TestNewLimitedExporter(t *testing.T) {
 
 	signer := mockSigner("mocked_sign")
 
-	exporter := NewLimitedExporter(&baseURL, signer, 3, nil)
+	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 3, nil)
 
 	assert.NotNil(t, exporter)
 	assert.Equal(t, baseURL, *exporter.baseURL)
@@ -69,7 +70,7 @@ func TestAdd(t *testing.T) {
 
 	signer := mockSigner("mocked_sign")
 
-	exporter := NewLimitedExporter(&baseURL, signer, 3, nil)
+	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 3, nil)
 
 	counter := metrics.Counter(10)
 	exporter.Add("test_counter", counter)
@@ -95,7 +96,7 @@ func TestLimitedSend(t *testing.T) {
 	}))
 	defer server.Close()
 
-	exporter := NewLimitedExporter(&baseURL, signer, 1, nil)
+	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
 	exporter.Add("test_counter", metrics.Counter(10))
 
 	err := exporter.Send()
@@ -121,7 +122,7 @@ func TestBatchSend(t *testing.T) {
 	}))
 	defer server.Close()
 
-	exporter := NewBatchExporter(&baseURL, signer, nil)
+	exporter := NewBatchExporter(context.Background(), &baseURL, signer, nil)
 	exporter.Add("test_counter", metrics.Counter(10))
 
 	err := exporter.Send()
@@ -136,7 +137,7 @@ func TestSendEmptyBuffer(t *testing.T) {
 	signer := mockSigner("mocked_sign")
 	baseURL := entities.Address("localhost:8080")
 
-	exporter := NewLimitedExporter(&baseURL, signer, 1, nil)
+	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
 
 	err := exporter.Send()
 
@@ -148,7 +149,7 @@ func TestError(t *testing.T) {
 	signer := mockSigner("mocked_sign")
 	baseURL := entities.Address("localhost:8080")
 
-	exporter := NewLimitedExporter(&baseURL, signer, 1, nil)
+	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
 
 	exporter.err = errors.New("test error")
 	assert.Equal(t, "metrics export failed: test error", exporter.Error().Error())
@@ -158,7 +159,7 @@ func TestReset(t *testing.T) {
 	signer := mockSigner("mocked_sign")
 	baseURL := entities.Address("localhost:8080")
 
-	exporter := NewLimitedExporter(&baseURL, signer, 1, nil)
+	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
 
 	exporter.Add("test_counter", metrics.Counter(10))
 	exporter.Reset()
@@ -171,7 +172,7 @@ func TestWorker(t *testing.T) {
 	signer := mockSigner("mocked_sign")
 	baseURL := entities.Address("localhost:8080")
 
-	exporter := NewLimitedExporter(&baseURL, signer, 1, nil)
+	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
 
 	exporter.Add("test_counter", metrics.Counter(10))
 	err := exporter.Send()

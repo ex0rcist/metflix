@@ -22,5 +22,8 @@ func main() {
 		logging.LogFatal(err)
 	}
 
-	agnt.Run()
+	err = agnt.Run()
+	if err != nil {
+		logging.LogFatal(err)
+	}
 }

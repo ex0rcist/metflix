@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ type LimitedExporter struct {
 	client    *http.Client
 	signer    security.Signer
 	publicKey security.PublicKey
+	context   context.Context
 
 	buffer []metrics.MetricExchange
 	jobs   chan metrics.MetricExchange
@@ -32,13 +34,20 @@ type LimitedExporter struct {
 }
 
 // Constructor.
-func NewLimitedExporter(baseURL *entities.Address, signer security.Signer, numWorkers int, publicKey security.PublicKey) *LimitedExporter {
+func NewLimitedExporter(
+	ctx context.Context,
+	baseURL *entities.Address,
+	signer security.Signer,
+	numWorkers int,
+	publicKey security.PublicKey,
+) *LimitedExporter {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
 
 	exporter := &LimitedExporter{
 		baseURL:   baseURL,
+		context:   ctx,
 		client:    client,
 		signer:    signer,
 		publicKey: publicKey,
@@ -131,7 +140,7 @@ func (e *LimitedExporter) worker(id int) {
 				return ok
 			},
 			retrier.WithDelays(delays),
-		).Run()
+		).Run(e.context)
 
 		if err != nil {
 			logging.LogError(err, "error during async working")

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -18,13 +20,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const shutdownTimeout = 60 * time.Second
+
 // Metric collecting agent (mr. Bond?).
 type Agent struct {
 	Config   *Config
 	Stats    *Stats
 	Exporter exporter.Exporter
-
-	publicKey security.PublicKey
 
 	wg sync.WaitGroup
 }
@@ -53,62 +55,101 @@ func New() (*Agent, error) {
 		return nil, err
 	}
 
-	var key security.PublicKey
-	if len(config.PublicKeyPath) != 0 {
-		key, err = security.NewPublicKey(config.PublicKeyPath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	exporter, err := newMetricsExporter(config, key)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Agent{
-		Config:    config,
-		Stats:     NewStats(),
-		Exporter:  exporter,
-		publicKey: key,
+		Config: config,
+		Stats:  NewStats(),
 	}, nil
 }
 
 // Run agent.
-func (a *Agent) Run() {
+func (a *Agent) Run() error {
 	logging.LogInfo(a.Config.String())
 	logging.LogInfo("agent ready")
 
-	ctx := context.Background()
+	ctx, cancelBackgroundTasks := context.WithCancel(context.Background())
+	defer cancelBackgroundTasks()
+
+	exporter, err := newMetricsExporter(ctx, a.Config)
+	if err != nil {
+		return err
+	}
+	a.Exporter = exporter
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	a.wg.Add(2)
 
-	go a.startPolling(ctx)
-	go a.startReporting()
+	go func() {
+		defer a.wg.Done()
+		a.startPolling(ctx)
+	}()
 
-	a.wg.Wait()
+	go func() {
+		defer a.wg.Done()
+		a.startReporting(ctx)
+	}()
+
+	<-interrupt
+
+	logging.LogInfo("shutting down agent...")
+	cancelBackgroundTasks()
+
+	stopped := make(chan struct{})
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	go func() {
+		defer close(stopped)
+		a.wg.Wait()
+	}()
+
+	select {
+	case <-stopped:
+		logging.LogInfo("agent shutdown successful")
+
+	case <-stopCtx.Done():
+		logging.LogWarn("exceeded shutdown timeout, force exit")
+	}
+
+	return nil
 }
 
 func (a *Agent) startPolling(ctx context.Context) {
-	defer a.wg.Done()
+	ticker := time.NewTicker(utils.IntToDuration(a.Config.PollInterval))
+	defer ticker.Stop()
 
 	for {
-		err := a.Stats.Poll(ctx)
-		if err != nil {
-			logging.LogError(err)
-		}
+		select {
+		case <-ticker.C:
+			func() {
+				err := a.Stats.Poll(ctx)
+				if err != nil {
+					logging.LogError(err)
+				}
+			}()
 
-		time.Sleep(utils.IntToDuration(a.Config.PollInterval))
+		case <-ctx.Done():
+			logging.LogInfo("shutting down metrics polling")
+			return
+		}
 	}
 }
 
-func (a *Agent) startReporting() {
-	defer a.wg.Done()
+func (a *Agent) startReporting(ctx context.Context) {
+	ticker := time.NewTicker(utils.IntToDuration(a.Config.ReportInterval))
+	defer ticker.Stop()
 
 	for {
-		time.Sleep(utils.IntToDuration(a.Config.ReportInterval))
+		select {
+		case <-ticker.C:
+			a.reportStats()
 
-		a.reportStats()
+		case <-ctx.Done():
+			logging.LogInfo("shutting down metrics reporting")
+			return
+		}
 	}
 }
 
@@ -205,7 +246,7 @@ func detectExporterKind(c *Config) string {
 	return ek
 }
 
-func newMetricsExporter(config *Config, publicKey security.PublicKey) (exporter.Exporter, error) {
+func newMetricsExporter(ctx context.Context, config *Config) (exporter.Exporter, error) {
 	var exp exporter.Exporter
 	var signer security.Signer
 	var err error
@@ -214,13 +255,21 @@ func newMetricsExporter(config *Config, publicKey security.PublicKey) (exporter.
 		signer = security.NewSignerService(config.Secret)
 	}
 
+	var publicKey security.PublicKey
+	if len(config.PublicKeyPath) != 0 {
+		publicKey, err = security.NewPublicKey(config.PublicKeyPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	exporterKind := detectExporterKind(config)
 
 	switch exporterKind {
 	case exporter.KindLimited:
-		exp = exporter.NewLimitedExporter(&config.Address, signer, config.RateLimit, publicKey)
+		exp = exporter.NewLimitedExporter(ctx, &config.Address, signer, config.RateLimit, publicKey)
 	case exporter.KindBatch:
-		exp = exporter.NewBatchExporter(&config.Address, signer, publicKey)
+		exp = exporter.NewBatchExporter(ctx, &config.Address, signer, publicKey)
 	default:
 		exp, err = nil, fmt.Errorf("unknown exporter type")
 	}
