@@ -118,6 +118,7 @@ func (a *Agent) Run() error {
 	return nil
 }
 
+// Shutdown agent
 func (a *Agent) Shutdown() {
 	a.interrupt <- os.Interrupt
 }
