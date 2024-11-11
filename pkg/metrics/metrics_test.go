@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// Test ToCounter function
 func TestToCounter(t *testing.T) {
 	tests := []struct {
 		input       string
@@ -30,7 +29,6 @@ func TestToCounter(t *testing.T) {
 	}
 }
 
-// Test ToGauge function
 func TestToGauge(t *testing.T) {
 	tests := []struct {
 		input       string
@@ -55,7 +53,6 @@ func TestToGauge(t *testing.T) {
 	}
 }
 
-// Test Metric methods for Counter
 func TestCounterMethods(t *testing.T) {
 	var c Counter = 100
 	if c.Kind() != KindCounter {
@@ -66,7 +63,6 @@ func TestCounterMethods(t *testing.T) {
 	}
 }
 
-// Test Metric methods for Gauge
 func TestGaugeMethods(t *testing.T) {
 	var g Gauge = 100.25
 	if g.Kind() != KindGauge {
@@ -77,7 +73,6 @@ func TestGaugeMethods(t *testing.T) {
 	}
 }
 
-// Test NewUpdateCounterMex function
 func TestNewUpdateCounterMex(t *testing.T) {
 	var value Counter = 123
 	mex := NewUpdateCounterMex("test_counter", value)
@@ -95,7 +90,6 @@ func TestNewUpdateCounterMex(t *testing.T) {
 	}
 }
 
-// Test NewUpdateGaugeMex function
 func TestNewUpdateGaugeMex(t *testing.T) {
 	var value Gauge = 123.45
 	mex := NewUpdateGaugeMex("test_gauge", value)
@@ -113,7 +107,6 @@ func TestNewUpdateGaugeMex(t *testing.T) {
 	}
 }
 
-// Test NewGetCounterMex function
 func TestNewGetCounterMex(t *testing.T) {
 	mex := NewGetCounterMex("get_counter")
 	if mex.ID != "get_counter" {
@@ -130,7 +123,6 @@ func TestNewGetCounterMex(t *testing.T) {
 	}
 }
 
-// Test NewGetGaugeMex function
 func TestNewGetGaugeMex(t *testing.T) {
 	mex := NewGetGaugeMex("get_gauge")
 	if mex.ID != "get_gauge" {
