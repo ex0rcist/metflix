@@ -43,6 +43,7 @@ type Config struct {
 	Secret          entities.Secret   `env:"KEY" json:"key"`
 	ProfilerAddress entities.Address  `env:"PROFILER_ADDRESS" json:"profiler_address"`
 	PrivateKeyPath  entities.FilePath `env:"CRYPTO_KEY" json:"crypto_key"`
+	ConfigFilePath  entities.FilePath `env:"CONFIG"`
 }
 
 // Server constructor
@@ -177,7 +178,12 @@ func (s *Server) shutdown(ctx context.Context) {
 }
 
 func parseConfig(config *Config) error {
-	err := parseFlags(config, os.Args[0], os.Args[1:])
+	err := tryLoadJSONConfig(config)
+	if err != nil {
+		return err
+	}
+
+	err = parseFlags(config, os.Args[0], os.Args[1:])
 	if err != nil {
 		return err
 	}
@@ -191,11 +197,6 @@ func parseConfig(config *Config) error {
 }
 
 func parseFlags(config *Config, progname string, args []string) error {
-	err := tryLoadJSONConfig(config)
-	if err != nil {
-		return err
-	}
-
 	flags := pflag.NewFlagSet(progname, pflag.ContinueOnError)
 
 	address := config.Address
@@ -275,7 +276,9 @@ func newDataStorage(config *Config) (storage.MetricsStorage, error) {
 }
 
 func tryLoadJSONConfig(dst *Config) error {
-	var configArg string
+	configArg := os.Getenv("CONFIG")
+
+	// args is higher prior
 	for i, arg := range os.Args {
 		if (arg == "-c" || arg == "--config") && i+1 < len(os.Args) {
 			configArg = os.Args[i+1]

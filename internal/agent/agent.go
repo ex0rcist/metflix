@@ -320,7 +320,9 @@ func parseConfig(config *Config) error {
 }
 
 func tryLoadJSONConfig(dst *Config) error {
-	var configArg string
+	configArg := os.Getenv("CONFIG")
+
+	// args is higher prior
 	for i, arg := range os.Args {
 		if (arg == "-c" || arg == "--config") && i+1 < len(os.Args) {
 			configArg = os.Args[i+1]

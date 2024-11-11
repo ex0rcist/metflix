@@ -6,6 +6,10 @@ SERVER_VERSION ?= 0.1.0
 BUILD_DATE ?= $(shell date +%F\ %H:%M:%S)
 BUILD_COMMIT ?= $(shell git rev-parse --short HEAD)
 
+help: ## display this help screen
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+.PHONY: help
+
 build: agent server staticlint
 .PHONY: build
 
