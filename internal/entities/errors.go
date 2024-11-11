@@ -33,11 +33,6 @@ var (
 	ErrUnexpected = errors.New("unexpected error")
 )
 
-// Constructor wrapper.
-func NewStackError(err error) error {
-	return errors.New(err.Error())
-}
-
 var _ error = (*RetriableError)(nil)
 
 // Error to handle retries.

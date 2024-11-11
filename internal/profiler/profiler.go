@@ -20,12 +20,15 @@ var (
 // Profiler service obj to make snapshots
 type Profiler struct {
 	callCounter int32
+	createFile  func(name string) (*os.File, error)
 }
 
 // Singleton
 func GetProfiler() *Profiler {
 	once.Do(func() {
-		profilerInstance = &Profiler{}
+		profilerInstance = &Profiler{
+			createFile: os.Create,
+		}
 	})
 	return profilerInstance
 }
@@ -41,7 +44,7 @@ func (p *Profiler) SaveMemoryProfile() {
 	timestamp := time.Now().Format("20060102-150405")
 	fileName := fmt.Sprintf("./memory_profile_%s.prof", timestamp)
 
-	f, err := os.Create(fileName)
+	f, err := p.createFile(fileName)
 	if err != nil {
 		panic(err)
 	}

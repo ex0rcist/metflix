@@ -28,6 +28,8 @@ type Agent struct {
 	Stats    *Stats
 	Exporter exporter.Exporter
 
+	interrupt chan os.Signal
+
 	wg sync.WaitGroup
 }
 
@@ -56,8 +58,9 @@ func New() (*Agent, error) {
 	}
 
 	return &Agent{
-		Config: config,
-		Stats:  NewStats(),
+		Config:    config,
+		Stats:     NewStats(),
+		interrupt: make(chan os.Signal, 1),
 	}, nil
 }
 
@@ -75,8 +78,7 @@ func (a *Agent) Run() error {
 	}
 	a.Exporter = exporter
 
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(a.interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	a.wg.Add(2)
 
@@ -90,7 +92,7 @@ func (a *Agent) Run() error {
 		a.startReporting(ctx)
 	}()
 
-	<-interrupt
+	<-a.interrupt
 
 	logging.LogInfo("shutting down agent...")
 	cancelBackgroundTasks()
@@ -114,6 +116,10 @@ func (a *Agent) Run() error {
 	}
 
 	return nil
+}
+
+func (a *Agent) Shutdown() {
+	a.interrupt <- os.Interrupt
 }
 
 func (a *Agent) startPolling(ctx context.Context) {

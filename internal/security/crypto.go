@@ -85,6 +85,11 @@ func Encrypt(src io.Reader, key PublicKey) (*bytes.Buffer, error) {
 		n, err := src.Read(chunk)
 
 		if n > 0 {
+			// chop trailing zeroes
+			if n != len(chunk) {
+				chunk = chunk[:n]
+			}
+
 			encryptedChunk, encErr := rsa.EncryptOAEP(sha256.New(), rand.Reader, key, chunk, nil)
 			if encErr != nil {
 				return nil, fmt.Errorf("security.Encrypt - rsa.EncryptOAEP: %w", encErr)
@@ -116,6 +121,11 @@ func Decrypt(src io.Reader, key PrivateKey) (*bytes.Buffer, error) {
 		n, err := src.Read(chunk)
 
 		if n > 0 {
+			// chop trailing zeroes
+			if n != len(chunk) {
+				chunk = chunk[:n]
+			}
+
 			decryptedChunk, decErr := rsa.DecryptOAEP(sha256.New(), rand.Reader, key, chunk, nil)
 			if decErr != nil {
 				return nil, fmt.Errorf("security.Decrypt - rsa.DecryptOAEP: %w", decErr)
