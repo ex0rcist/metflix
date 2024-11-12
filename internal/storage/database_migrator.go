@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -48,7 +49,7 @@ func (m DatabaseMigrator) Run() error {
 			return true
 		},
 		retrier.WithDelays(delays),
-	).Run()
+	).Run(context.Background())
 
 	if m.err != nil {
 		return m.err

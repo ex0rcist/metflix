@@ -1,4 +1,4 @@
-package services
+package security
 
 import (
 	"crypto/hmac"

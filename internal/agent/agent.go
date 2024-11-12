@@ -2,19 +2,25 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/agent/exporter"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
-	"github.com/ex0rcist/metflix/internal/services"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/utils"
 	"github.com/spf13/pflag"
 )
+
+const shutdownTimeout = 60 * time.Second
 
 // Metric collecting agent (mr. Bond?).
 type Agent struct {
@@ -22,16 +28,19 @@ type Agent struct {
 	Stats    *Stats
 	Exporter exporter.Exporter
 
+	interrupt chan os.Signal
+
 	wg sync.WaitGroup
 }
 
 // Agent config.
 type Config struct {
-	Address        entities.Address `env:"ADDRESS"`
-	PollInterval   int              `env:"POLL_INTERVAL"`
-	ReportInterval int              `env:"REPORT_INTERVAL"`
-	RateLimit      int              `env:"RATE_LIMIT"`
-	Secret         entities.Secret  `env:"KEY"`
+	Address        entities.Address  `env:"ADDRESS" json:"address"`
+	PollInterval   int               `env:"POLL_INTERVAL" json:"poll_interval"`
+	ReportInterval int               `env:"REPORT_INTERVAL" json:"report_interval"`
+	RateLimit      int               `env:"RATE_LIMIT" json:"-"`
+	Secret         entities.Secret   `env:"KEY" json:"key"`
+	PublicKeyPath  entities.FilePath `env:"CRYPTO_KEY" json:"crypto_key"`
 }
 
 // Constructor.
@@ -48,53 +57,106 @@ func New() (*Agent, error) {
 		return nil, err
 	}
 
-	exporter, err := newMetricsExporter(config)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Agent{
-		Config:   config,
-		Stats:    NewStats(),
-		Exporter: exporter,
+		Config:    config,
+		Stats:     NewStats(),
+		interrupt: make(chan os.Signal, 1),
 	}, nil
 }
 
 // Run agent.
-func (a *Agent) Run() {
+func (a *Agent) Run() error {
 	logging.LogInfo(a.Config.String())
 	logging.LogInfo("agent ready")
 
-	ctx := context.Background()
+	ctx, cancelBackgroundTasks := context.WithCancel(context.Background())
+	defer cancelBackgroundTasks()
+
+	exporter, err := newMetricsExporter(ctx, a.Config)
+	if err != nil {
+		return err
+	}
+	a.Exporter = exporter
+
+	signal.Notify(a.interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	a.wg.Add(2)
 
-	go a.startPolling(ctx)
-	go a.startReporting()
+	go func() {
+		defer a.wg.Done()
+		a.startPolling(ctx)
+	}()
 
-	a.wg.Wait()
+	go func() {
+		defer a.wg.Done()
+		a.startReporting(ctx)
+	}()
+
+	<-a.interrupt
+
+	logging.LogInfo("shutting down agent...")
+	cancelBackgroundTasks()
+
+	stopped := make(chan struct{})
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	go func() {
+		defer close(stopped)
+		a.wg.Wait()
+	}()
+
+	select {
+	case <-stopped:
+		logging.LogInfo("agent shutdown successful")
+
+	case <-stopCtx.Done():
+		logging.LogWarn("exceeded shutdown timeout, force exit")
+	}
+
+	return nil
+}
+
+// Shutdown agent
+func (a *Agent) Shutdown() {
+	a.interrupt <- os.Interrupt
 }
 
 func (a *Agent) startPolling(ctx context.Context) {
-	defer a.wg.Done()
+	ticker := time.NewTicker(utils.IntToDuration(a.Config.PollInterval))
+	defer ticker.Stop()
 
 	for {
-		err := a.Stats.Poll(ctx)
-		if err != nil {
-			logging.LogError(err)
-		}
+		select {
+		case <-ticker.C:
+			func() {
+				err := a.Stats.Poll(ctx)
+				if err != nil {
+					logging.LogError(err)
+				}
+			}()
 
-		time.Sleep(utils.IntToDuration(a.Config.PollInterval))
+		case <-ctx.Done():
+			logging.LogInfo("shutting down metrics polling")
+			return
+		}
 	}
 }
 
-func (a *Agent) startReporting() {
-	defer a.wg.Done()
+func (a *Agent) startReporting(ctx context.Context) {
+	ticker := time.NewTicker(utils.IntToDuration(a.Config.ReportInterval))
+	defer ticker.Stop()
 
 	for {
-		time.Sleep(utils.IntToDuration(a.Config.ReportInterval))
+		select {
+		case <-ticker.C:
+			a.reportStats()
 
-		a.reportStats()
+		case <-ctx.Done():
+			logging.LogInfo("shutting down metrics reporting")
+			return
+		}
 	}
 }
 
@@ -171,6 +233,10 @@ func (c Config) String() string {
 		str = append(str, fmt.Sprintf("secret=%v", c.Secret))
 	}
 
+	if len(c.PublicKeyPath) > 0 {
+		str = append(str, fmt.Sprintf("public-key=%v", c.PublicKeyPath))
+	}
+
 	return "agent config: " + strings.Join(str, "; ")
 }
 
@@ -187,22 +253,30 @@ func detectExporterKind(c *Config) string {
 	return ek
 }
 
-func newMetricsExporter(config *Config) (exporter.Exporter, error) {
+func newMetricsExporter(ctx context.Context, config *Config) (exporter.Exporter, error) {
 	var exp exporter.Exporter
-	var signer services.Signer
+	var signer security.Signer
 	var err error
 
 	if len(config.Secret) > 0 {
-		signer = services.NewSignerService(config.Secret)
+		signer = security.NewSignerService(config.Secret)
+	}
+
+	var publicKey security.PublicKey
+	if len(config.PublicKeyPath) != 0 {
+		publicKey, err = security.NewPublicKey(config.PublicKeyPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	exporterKind := detectExporterKind(config)
 
 	switch exporterKind {
 	case exporter.KindLimited:
-		exp = exporter.NewLimitedExporter(&config.Address, signer, config.RateLimit)
+		exp = exporter.NewLimitedExporter(ctx, &config.Address, signer, config.RateLimit, publicKey)
 	case exporter.KindBatch:
-		exp = exporter.NewBatchExporter(&config.Address, signer)
+		exp = exporter.NewBatchExporter(ctx, &config.Address, signer, publicKey)
 	default:
 		exp, err = nil, fmt.Errorf("unknown exporter type")
 	}
@@ -211,11 +285,22 @@ func newMetricsExporter(config *Config) (exporter.Exporter, error) {
 }
 
 func parseConfig(config *Config) error {
+	err := tryLoadJSONConfig(config)
+	if err != nil {
+		return err
+	}
+
 	address := config.Address
 	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
 
 	secret := config.Secret
 	pflag.VarP(&secret, "secret", "k", "a key to sign outgoing data")
+
+	publicKeyPath := config.PublicKeyPath
+	pflag.VarP(&publicKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
+
+	configPath := entities.FilePath("") // register var for compatibility
+	pflag.VarP(&configPath, "config", "c", "path to configuration file in JSON format")
 
 	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&config.ReportInterval, "report-interval", "r", config.ReportInterval, "interval (s) for polling stats")
@@ -223,18 +308,53 @@ func parseConfig(config *Config) error {
 
 	pflag.Parse()
 
-	// because VarP gets non-pointer value, set it manually
 	pflag.Visit(func(f *pflag.Flag) {
 		switch f.Name {
 		case "address":
 			config.Address = address
 		case "secret":
 			config.Secret = secret
+		case "crypto-key":
+			config.PublicKeyPath = publicKeyPath
 		}
 	})
 
 	if err := env.Parse(config); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func tryLoadJSONConfig(dst *Config) error {
+	configArg := os.Getenv("CONFIG")
+
+	// args is higher prior
+	for i, arg := range os.Args {
+		if (arg == "-c" || arg == "--config") && i+1 < len(os.Args) {
+			configArg = os.Args[i+1]
+			break
+		}
+	}
+
+	if len(configArg) > 0 {
+		err := loadConfigFromFile(entities.FilePath(configArg), dst)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func loadConfigFromFile(src entities.FilePath, dst *Config) error {
+	data, err := os.ReadFile(src.String())
+	if err != nil {
+		return fmt.Errorf("agent.loadConfigFromFile - os.ReadFile: %w", err)
+	}
+
+	if err := json.Unmarshal(data, dst); err != nil {
+		return fmt.Errorf("agent.loadConfigFromFile - json.Unmarshal: %w", err)
 	}
 
 	return nil

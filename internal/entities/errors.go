@@ -28,13 +28,10 @@ var (
 
 	ErrNoSignature = errors.New("no signature provided")
 
+	ErrBadRSAKey = errors.New("bad RSA key")
+
 	ErrUnexpected = errors.New("unexpected error")
 )
-
-// Constructor wrapper.
-func NewStackError(err error) error {
-	return errors.New(err.Error())
-}
 
 var _ error = (*RetriableError)(nil)
 

@@ -10,6 +10,7 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+*.out.tmp
 
 # Binaries
 cmd/agent/main
@@ -25,3 +26,5 @@ vendor/
 .vscode
 
 .DS_Store
+
+*.prof

@@ -25,6 +25,7 @@ import (
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/middleware"
+	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/services"
 	"github.com/ex0rcist/metflix/internal/storage"
 )
@@ -34,6 +35,7 @@ func NewRouter(
 	storageService storage.StorageService,
 	pingerService services.Pinger,
 	secret entities.Secret,
+	privateKey security.PrivateKey,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -44,6 +46,10 @@ func NewRouter(
 
 	router.Use(func(next http.Handler) http.Handler {
 		return middleware.CheckSignedRequest(next, secret)
+	})
+
+	router.Use(func(next http.Handler) http.Handler {
+		return middleware.DecryptRequest(next, privateKey)
 	})
 
 	router.Use(middleware.DecompressRequest)
