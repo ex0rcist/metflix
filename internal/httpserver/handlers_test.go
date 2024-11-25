@@ -48,7 +48,7 @@ func createTestRouter() (http.Handler, *storage.ServiceMock, *services.PingerMoc
 	sm := &storage.ServiceMock{}
 	pm := &services.PingerMock{}
 
-	router := NewRouter(sm, pm, entities.Secret(""), nil)
+	router := NewRouter(sm, pm, entities.Secret(""), nil, nil)
 
 	return router, sm, pm
 }

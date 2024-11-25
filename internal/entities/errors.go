@@ -3,6 +3,7 @@ package entities
 import (
 	"errors"
 	"fmt"
+	"net"
 	"time"
 )
 
@@ -26,9 +27,9 @@ var (
 	ErrEncodingInternal    = errors.New("internal encoding error")
 	ErrEncodingUnsupported = errors.New("requsted encoding is not supported")
 
-	ErrNoSignature = errors.New("no signature provided")
-
-	ErrBadRSAKey = errors.New("bad RSA key")
+	ErrNoSignature     = errors.New("no signature provided")
+	ErrBadRSAKey       = errors.New("bad RSA key")
+	ErrUntrustedSubnet = errors.New("got request from untrusted subnet")
 
 	ErrUnexpected = errors.New("unexpected error")
 )
@@ -44,4 +45,9 @@ type RetriableError struct {
 // Return readable representation.
 func (e RetriableError) Error() string {
 	return fmt.Sprintf("%s (retry after %v)", e.Err.Error(), e.RetryAfter)
+}
+
+// Return error containing violating IP
+func UntrustedSubnetError(src net.IP) error {
+	return fmt.Errorf("%w (%s)", ErrUntrustedSubnet, src.String())
 }

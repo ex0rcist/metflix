@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -43,6 +44,7 @@ type Config struct {
 	Secret          entities.Secret   `env:"KEY" json:"key"`
 	ProfilerAddress entities.Address  `env:"PROFILER_ADDRESS" json:"profiler_address"`
 	PrivateKeyPath  entities.FilePath `env:"CRYPTO_KEY" json:"crypto_key"`
+	TrustedSubnet   *net.IPNet        `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 	ConfigFilePath  entities.FilePath `env:"CONFIG"`
 }
 
@@ -75,7 +77,13 @@ func New() (*Server, error) {
 
 	storageService := storage.NewService(dataStorage)
 	pingerService := services.NewPingerService(dataStorage)
-	router := httpserver.NewRouter(storageService, pingerService, config.Secret, privateKey)
+	router := httpserver.NewRouter(
+		storageService,
+		pingerService,
+		config.Secret,
+		privateKey,
+		config.TrustedSubnet,
+	)
 
 	httpServer := httpserver.New(router, config.Address)
 	pprofiler := NewProfilerServer(config.ProfilerAddress)
@@ -157,6 +165,10 @@ func (s *Server) String() string {
 		str = append(str, fmt.Sprintf("private-key=%v", s.config.PrivateKeyPath))
 	}
 
+	if s.config.TrustedSubnet != nil {
+		str = append(str, fmt.Sprintf("trusted-subnet=%v", s.config.TrustedSubnet.String()))
+	}
+
 	return "server config: " + strings.Join(str, "; ")
 }
 
@@ -211,6 +223,9 @@ func parseFlags(config *Config, progname string, args []string) error {
 	configPath := entities.FilePath("") // register var for compatibility
 	flags.VarP(&configPath, "config", "c", "path to configuration file in JSON format")
 
+	defaultSubnet := net.IPNet{}
+	trustedSubnet := flags.IPNetP("trusted-subnet", "t", defaultSubnet, "trusted subnet in CIDR notation")
+
 	// define flags
 	flags.IntVarP(&config.StoreInterval, "store-interval", "i", config.StoreInterval, "interval (s) for dumping metrics to the disk, zero value means saving after each request")
 	flags.StringVarP(&config.StorePath, "store-file", "f", config.StorePath, "path to file to store metrics")
@@ -231,6 +246,8 @@ func parseFlags(config *Config, progname string, args []string) error {
 			config.Secret = secret
 		case "crypto-key":
 			config.PrivateKeyPath = privateKeyPath
+		case "trusted-subnet":
+			config.TrustedSubnet = trustedSubnet
 		}
 	})
 

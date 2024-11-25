@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/ex0rcist/metflix/internal/entities"
@@ -128,6 +129,27 @@ func DecryptRequest(next http.Handler, key security.PrivateKey) http.Handler {
 		}
 
 		r.Body = io.NopCloser(bytes.NewReader(msg.Bytes()))
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Ensure incoming request is from a trsuted subnet
+func FilterUntrustedRequest(next http.Handler, trustedSubnet *net.IPNet) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if trustedSubnet == nil { // skip middleware entirely
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		clientIP := net.ParseIP(r.Header.Get("X-Real-IP"))
+
+		if !trustedSubnet.Contains(clientIP) {
+			logging.LogError(entities.UntrustedSubnetError(clientIP))
+			http.Error(w, "", http.StatusForbidden)
+
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }

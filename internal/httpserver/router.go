@@ -15,6 +15,7 @@ package httpserver
 // @Tag.description "API to inspect service health state"
 
 import (
+	"net"
 	"net/http"
 
 	_ "github.com/ex0rcist/metflix/docs/api"
@@ -36,6 +37,7 @@ func NewRouter(
 	pingerService services.Pinger,
 	secret entities.Secret,
 	privateKey security.PrivateKey,
+	trustedSubnet *net.IPNet,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -50,6 +52,10 @@ func NewRouter(
 
 	router.Use(func(next http.Handler) http.Handler {
 		return middleware.DecryptRequest(next, privateKey)
+	})
+
+	router.Use(func(next http.Handler) http.Handler {
+		return middleware.FilterUntrustedRequest(next, trustedSubnet)
 	})
 
 	router.Use(middleware.DecompressRequest)

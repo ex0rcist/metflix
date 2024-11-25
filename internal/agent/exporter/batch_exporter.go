@@ -146,6 +146,12 @@ func (e *BatchExporter) doSend() error {
 	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("X-Request-Id", requestID)
 
+	clientIP, err := utils.GetOutboundIP()
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Real-IP", clientIP.String())
+
 	if e.signer != nil {
 		signature, signErr := e.signer.CalculateSignature(payload.Bytes())
 		if signErr != nil {
