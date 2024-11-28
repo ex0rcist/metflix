@@ -14,7 +14,7 @@ import (
 )
 
 // Service to migrate database
-type DatabaseMigrator struct {
+type PostgresMigrator struct {
 	dsn     string
 	retries int
 	source  string
@@ -24,12 +24,12 @@ type DatabaseMigrator struct {
 }
 
 // DatabaseMigrator Constructor
-func NewDatabaseMigrator(dsn string, source string, retries int) DatabaseMigrator {
-	return DatabaseMigrator{dsn: dsn, source: source, retries: retries}
+func NewPostgresMigrator(dsn string, source string, retries int) PostgresMigrator {
+	return PostgresMigrator{dsn: dsn, source: source, retries: retries}
 }
 
 // Run migrations if any (with retries)
-func (m DatabaseMigrator) Run() error {
+func (m PostgresMigrator) Run() error {
 	delays := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
 
 	m.err = retrier.New(

@@ -19,6 +19,7 @@ var _ MetricsStorage = PostgresStorage{}
 // PostgresStorage
 type PostgresStorage struct {
 	Pool PGXPool
+	dsn  string
 }
 
 type dbQueryTracer struct {
@@ -38,7 +39,7 @@ func (tracer *dbQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, 
 
 // DatabseStorage constructor
 func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
-	migrator := NewDatabaseMigrator(dsn, "file://db/migrate", 5)
+	migrator := NewPostgresMigrator(dsn, "file://db/migrate", 5)
 
 	if err := migrator.Run(); err != nil {
 		return nil, fmt.Errorf("migrations run failed: %w", err)
@@ -57,7 +58,7 @@ func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
 		return nil, fmt.Errorf("pgxpool init failed: %w", err)
 	}
 
-	return &PostgresStorage{Pool: pool}, nil
+	return &PostgresStorage{Pool: pool, dsn: dsn}, nil
 }
 
 // Push record to storage
@@ -192,4 +193,8 @@ func (d PostgresStorage) Ping(ctx context.Context) error {
 func (d PostgresStorage) Close(ctx context.Context) error {
 	d.Pool.Close()
 	return nil
+}
+
+func (d PostgresStorage) String() string {
+	return fmt.Sprintf("storage=%s", d.dsn)
 }

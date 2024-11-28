@@ -17,3 +17,19 @@ type MetricsStorage interface {
 	List(ctx context.Context) ([]Record, error)
 	Close(ctx context.Context) error
 }
+
+func NewStorage(
+	databaseDSN string,
+	storePath string,
+	storeInterval int,
+	restoreOnStart bool,
+) (MetricsStorage, error) {
+	switch {
+	case databaseDSN != "":
+		return NewPostgresStorage(databaseDSN)
+	case storePath != "":
+		return NewFileStorage(storePath, storeInterval, restoreOnStart)
+	default:
+		return NewMemStorage(), nil
+	}
+}
