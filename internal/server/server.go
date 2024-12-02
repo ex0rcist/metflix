@@ -164,7 +164,6 @@ func setupHTTPServer(
 		httpserver.WithTrustedSubnet(config.TrustedSubnet),
 		httpserver.WithSignSecret(config.Secret),
 		httpserver.WithPrivateKey(privateKey),
-
 		httpserver.WithHealthResource(healthResource),
 		httpserver.WithMetricResource(metricResource),
 	)
@@ -181,7 +180,6 @@ func setupGRPCServer(
 	srv := grpcserver.NewBackend(
 		grpcserver.WithTrustedSubnet(config.TrustedSubnet),
 		grpcserver.WithPrivateKey(privateKey),
-
 		grpcserver.WithHealthService(healthService),
 		grpcserver.WithMetricService(metricService),
 	)
