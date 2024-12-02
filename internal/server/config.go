@@ -14,6 +14,7 @@ import (
 // Backend config
 type Config struct {
 	Address         entities.Address  `env:"ADDRESS" json:"address"`
+	GRPCAddress     entities.Address  `env:"GRPC_ADDRESS" json:"grpc_address"`
 	StoreInterval   int               `env:"STORE_INTERVAL" json:"store_interval"`
 	StorePath       string            `env:"FILE_STORAGE_PATH" json:"store_file"`
 	RestoreOnStart  bool              `env:"RESTORE" json:"restore"`
@@ -30,6 +31,7 @@ func NewConfig() (*Config, error) {
 
 	config := &Config{
 		Address:         "0.0.0.0:8080",
+		GRPCAddress:     "0.0.0.0:50051",
 		StoreInterval:   300,
 		RestoreOnStart:  true,
 		ProfilerAddress: "0.0.0.0:8081",

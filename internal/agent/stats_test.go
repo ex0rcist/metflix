@@ -3,6 +3,7 @@ package agent_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ex0rcist/metflix/internal/agent"
 	"github.com/ex0rcist/metflix/pkg/metrics"
@@ -24,6 +25,8 @@ func TestStatsPoll(t *testing.T) {
 	require.NotZero(s.Runtime.Alloc)
 	require.NotZero(s.RandomValue)
 	require.NotEmpty(s.System.CPUutilization)
+
+	time.Sleep(1 * time.Second)
 
 	prev := *s
 	err = s.Poll(ctx)

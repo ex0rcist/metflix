@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ex0rcist/metflix/internal/agent/exporter"
+	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/utils"
@@ -48,10 +49,21 @@ func (a *Agent) Run() error {
 	ctx, cancelBackgroundTasks := context.WithCancel(context.Background())
 	defer cancelBackgroundTasks()
 
-	exporter, err := newMetricsExporter(ctx, a.Config)
+	publicKey, err := preparePublicKey(a.Config.PublicKeyPath)
+	if err != nil {
+		logging.LogInfo("error making public key")
+	}
+
+	var signer security.Signer
+	if len(a.Config.Secret) > 0 {
+		signer = security.NewSignerService(a.Config.Secret)
+	}
+
+	exporter, err := exporter.New(ctx, a.Config.Transport, &a.Config.Address, a.Config.RateLimit, signer, publicKey)
 	if err != nil {
 		return err
 	}
+
 	a.Exporter = exporter
 
 	signal.Notify(a.interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -139,7 +151,6 @@ func (a *Agent) startReporting(ctx context.Context) {
 func (a *Agent) reportStats() {
 	logging.LogInfo("reporting stats ... ")
 
-	// agent continues polling while report is in progress, take snapshot?
 	snapshot := *a.Stats
 
 	a.Exporter.
@@ -196,31 +207,18 @@ func (a *Agent) reportStats() {
 	a.Stats.PollCount -= snapshot.PollCount
 }
 
-func newMetricsExporter(ctx context.Context, config *Config) (exporter.Exporter, error) {
+func preparePublicKey(path entities.FilePath) (security.PublicKey, error) {
 	var (
-		exp    exporter.Exporter
-		signer security.Signer
-		err    error
+		publicKey security.PublicKey
+		err       error
 	)
 
-	if len(config.Secret) > 0 {
-		signer = security.NewSignerService(config.Secret)
-	}
-
-	var publicKey security.PublicKey
-	if len(config.PublicKeyPath) != 0 {
-		publicKey, err = security.NewPublicKey(config.PublicKeyPath)
+	if len(path) > 0 {
+		publicKey, err = security.NewPublicKey(path)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	switch {
-	case config.RateLimit > 0:
-		exp = exporter.NewLimitedExporter(ctx, &config.Address, signer, config.RateLimit, publicKey)
-	default:
-		exp = exporter.NewBatchExporter(ctx, &config.Address, signer, publicKey)
-	}
-
-	return exp, err
+	return publicKey, err
 }

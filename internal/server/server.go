@@ -3,13 +3,13 @@ package server
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/ex0rcist/metflix/internal/grpcserver"
 	"github.com/ex0rcist/metflix/internal/httpserver"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/security"
@@ -22,10 +22,10 @@ const shutdownTimeout = 60 * time.Second
 // Backend heart
 type Server struct {
 	config         *Config
-	httpServer     *httpserver.Server
+	httpServer     *HTTPServer
+	grpcServer     *GRPCServer
 	profilerServer *ProfilerServer
 	storage        storage.MetricsStorage
-	router         http.Handler
 	privateKey     security.PrivateKey
 }
 
@@ -36,43 +36,29 @@ func New() (*Server, error) {
 		return nil, err
 	}
 
-	dataStorage, err := storage.NewStorage(
-		config.DatabaseDSN,
-		config.StorePath,
-		config.StoreInterval,
-		config.RestoreOnStart,
-	)
+	dataStorage, err := setupStorage(config)
 	if err != nil {
 		return nil, err
 	}
 
-	var privateKey security.PrivateKey
-	if len(config.PrivateKeyPath) != 0 {
-		privateKey, err = security.NewPrivateKey(config.PrivateKeyPath)
-		if err != nil {
-			return nil, err
-		}
+	privateKey, err := preparePrivateKey(config)
+	if err != nil {
+		return nil, err
 	}
 
-	storageService := storage.NewService(dataStorage)
-	pingerService := services.NewPingerService(dataStorage)
-	router := httpserver.NewRouter(
-		storageService,
-		pingerService,
-		config.Secret,
-		privateKey,
-		config.TrustedSubnet,
-	)
+	metricService := services.NewMetricService(dataStorage)
+	healthService := services.NewHealthCheckService(dataStorage)
 
-	httpServer := httpserver.New(router, config.Address)
-	profilerServer := NewProfilerServer(config.ProfilerAddress)
+	httpServer := setupHTTPServer(config, metricService, healthService, privateKey)
+	grpcServer := setupGRPCServer(config, metricService, healthService, privateKey)
+	profilerServer := setupProfilerServer(config)
 
 	return &Server{
 		config:         config,
 		httpServer:     httpServer,
+		grpcServer:     grpcServer,
 		profilerServer: profilerServer,
 		storage:        dataStorage,
-		router:         router,
 		privateKey:     privateKey,
 	}, nil
 }
@@ -83,6 +69,7 @@ func (s *Server) Start() {
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	s.httpServer.Start()
+	s.grpcServer.Start()
 	s.profilerServer.Start()
 
 	logging.LogInfo(s.String())
@@ -93,8 +80,10 @@ func (s *Server) Start() {
 		logging.LogInfo("interrupt: signal " + s.String())
 	case err := <-s.httpServer.Notify():
 		logging.LogError(err, "Server -> Start() -> s.httpServer.Notify")
+	case err := <-s.grpcServer.Notify():
+		logging.LogError(err, "Server -> Start() -> s.grpcServer.Notify")
 	case err := <-s.profilerServer.Notify():
-		logging.LogError(err, "Server -> Start() - s.profiler.Notify")
+		logging.LogError(err, "Server -> Start() - s.profilerServer.Notify")
 	}
 
 	logging.LogInfo("shutting down...")
@@ -148,6 +137,9 @@ func (s *Server) shutdown(ctx context.Context) {
 		logging.LogError(err)
 	}
 
+	logging.LogInfo("shutting down gRPC API")
+	s.grpcServer.Shutdown()
+
 	logging.LogInfo("shutting down storage")
 	if err := s.storage.Close(ctx); err != nil {
 		logging.LogError(err)
@@ -157,4 +149,71 @@ func (s *Server) shutdown(ctx context.Context) {
 	if err := s.profilerServer.Shutdown(ctx); err != nil {
 		logging.LogError(err)
 	}
+}
+
+func setupHTTPServer(
+	config *Config,
+	metricService services.MetricProvider,
+	healthService services.HealthChecker,
+	privateKey security.PrivateKey,
+) *HTTPServer {
+	healthResource := httpserver.NewHealthResource(healthService)
+	metricResource := httpserver.NewMetricResource(metricService)
+
+	handler := httpserver.NewBackend(
+		httpserver.WithTrustedSubnet(config.TrustedSubnet),
+		httpserver.WithSignSecret(config.Secret),
+		httpserver.WithPrivateKey(privateKey),
+
+		httpserver.WithHealthResource(healthResource),
+		httpserver.WithMetricResource(metricResource),
+	)
+
+	return NewHTTPServer(handler, config.Address)
+}
+
+func setupGRPCServer(
+	config *Config,
+	metricService services.MetricProvider,
+	healthService services.HealthChecker,
+	privateKey security.PrivateKey,
+) *GRPCServer {
+	srv := grpcserver.NewBackend(
+		grpcserver.WithTrustedSubnet(config.TrustedSubnet),
+		grpcserver.WithPrivateKey(privateKey),
+
+		grpcserver.WithHealthService(healthService),
+		grpcserver.WithMetricService(metricService),
+	)
+
+	return NewGRPCServer(srv, config.GRPCAddress)
+}
+
+func setupProfilerServer(config *Config) *ProfilerServer {
+	return NewProfilerServer(config)
+}
+
+func setupStorage(config *Config) (storage.MetricsStorage, error) {
+	return storage.NewStorage(
+		config.DatabaseDSN,
+		config.StorePath,
+		config.StoreInterval,
+		config.RestoreOnStart,
+	)
+}
+
+func preparePrivateKey(config *Config) (security.PrivateKey, error) {
+	var (
+		privateKey security.PrivateKey
+		err        error
+	)
+
+	if len(config.PrivateKeyPath) != 0 {
+		privateKey, err = security.NewPrivateKey(config.PrivateKeyPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return privateKey, err
 }

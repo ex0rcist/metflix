@@ -14,6 +14,7 @@ import (
 // Agent config.
 type Config struct {
 	Address        entities.Address  `env:"ADDRESS" json:"address"`
+	Transport      string            `env:"TRANSPORT" json:"transport"`
 	PollInterval   int               `env:"POLL_INTERVAL" json:"poll_interval"`
 	ReportInterval int               `env:"REPORT_INTERVAL" json:"report_interval"`
 	RateLimit      int               `env:"RATE_LIMIT" json:"-"`
@@ -26,6 +27,7 @@ func NewConfig() (*Config, error) {
 
 	config := &Config{
 		Address:        "0.0.0.0:8080",
+		Transport:      entities.TransportHTTP,
 		PollInterval:   2,
 		ReportInterval: 10,
 		RateLimit:      -1,
@@ -46,6 +48,7 @@ func (c Config) String() string {
 		fmt.Sprintf("poll-interval=%v", c.PollInterval),
 		fmt.Sprintf("report-interval=%v", c.ReportInterval),
 		fmt.Sprintf("rate-limit=%v", c.RateLimit),
+		fmt.Sprintf("transport=%v", c.Transport),
 	}
 
 	if len(c.Secret) > 0 {
@@ -80,6 +83,7 @@ func (c *Config) parse() error {
 	pflag.IntVarP(&c.PollInterval, "poll-interval", "p", c.PollInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&c.ReportInterval, "report-interval", "r", c.ReportInterval, "interval (s) for polling stats")
 	pflag.IntVarP(&c.RateLimit, "rate-limit", "l", c.RateLimit, "number of max simultaneous requests to server")
+	pflag.StringVarP(&c.Transport, "transport", "t", c.Transport, "transport to use: http/grpc")
 
 	pflag.Parse()
 

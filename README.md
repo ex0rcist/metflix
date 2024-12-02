@@ -64,6 +64,7 @@ $ make godoc
 -k, --secret string        a key to sign outgoing data
 -f, --store-file string    path to file to store metrics
 -i, --store-interval int   interval (s) for dumping metrics to the disk
+-t, --trusted-subnet ipNet   trusted subnet in CIDR notation
 ```
 
 ### Переменные окружения сервера
@@ -72,6 +73,12 @@ $ make godoc
 ```bash
 # Адрес и порт для http-api:
 export ADDRESS=0.0.0.0:8080
+
+# Адрес и порт для grpc-api:
+export GRPC_ADDRESS=0.0.0.0:8080
+
+# Доверенная подсеть в CIDR нотации (по умолчанию не задана).
+export TRUSTED_SUBNET=
 
 # Интервал времени в секундах для сохранения метрик на диск
 # (значение 0 — делает запись синхронной):
@@ -115,11 +122,12 @@ export CONFIG=
 
 -a, --address string        address:port for HTTP API requests (default "0.0.0.0:8080")
 -c, --config string         path to configuration file in JSON format
---crypto-key string         path to public key to encrypt agent -> server communications
+    --crypto-key string         path to public key to encrypt agent -> server communications
 -p, --poll-interval int     interval (s) for polling stats (default 2)
 -l, --rate-limit int        number of max simultaneous requests to server (default -1)
 -r, --report-interval int   interval (s) for polling stats (default 10)
 -k, --secret string         a key to sign outgoing data
+-t, --transport string      transport to use: http/grpc (default "http")
 ```
 
 ### Переменные окружения агента

@@ -6,6 +6,10 @@ SERVER_VERSION ?= 0.1.0
 BUILD_DATE ?= $(shell date +%F\ %H:%M:%S)
 BUILD_COMMIT ?= $(shell git rev-parse --short HEAD)
 
+PROTO_SRC = api/proto
+PROTO_FILES = health metrics
+PROTO_DST = pkg/grpcapi
+
 help: ## display this help screen
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 .PHONY: help
@@ -26,7 +30,7 @@ agent: ## build agent
 
 server: ## build server
 	rm -rf $(API_DOCS)
-	swag init -g ./internal/httpserver/router.go --output docs/api
+	swag init -g ./internal/httpserver/backend.go --output docs/api
 
 	go build \
 		-ldflags "\
@@ -58,3 +62,17 @@ godoc: ### show public packages documentation using godoc
 	@echo "http://127.0.0.1:3000/pkg/github.com/ex0rcist/metflix/pkg/\n"
 	@godoc -http=:3000 -play
 .PHONY: godoc
+
+proto: $(PROTO_FILES) ## generate gRPC protobuf bindings
+.PHONY: proto
+
+$(PROTO_FILES): %: $(PROTO_DST)/%
+
+$(PROTO_DST)/%:
+	protoc \
+		--proto_path=$(PROTO_SRC) \
+		--go_out=$(PROTO_DST) \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=$(PROTO_DST) \
+		--go-grpc_opt=paths=source_relative \
+		$(PROTO_SRC)/$(notdir $@).proto

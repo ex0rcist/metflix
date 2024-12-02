@@ -11,7 +11,7 @@ func TestRun(t *testing.T) {
 	agnt, err := New()
 	require.NoError(t, err)
 
-	time.AfterFunc(5*time.Second, func() { agnt.Shutdown() })
+	time.AfterFunc(2*time.Second, func() { agnt.Shutdown() })
 
 	err = agnt.Run()
 	require.NoError(t, err)
