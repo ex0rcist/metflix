@@ -156,3 +156,7 @@ func (s *FileStorage) startStorageDumping(ticker *time.Ticker) {
 		}
 	}
 }
+
+func (s *FileStorage) String() string {
+	return fmt.Sprintf("storage=%s,i:%d,restore:%v", s.storePath, s.storeInterval, s.restoreOnStart)
+}

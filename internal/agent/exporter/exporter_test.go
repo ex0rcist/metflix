@@ -8,32 +8,164 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/security"
+	"github.com/ex0rcist/metflix/pkg/grpcapi"
 	"github.com/ex0rcist/metflix/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
-type MockSigner struct {
-	mock.Mock
+func TestHTTPExporter(t *testing.T) {
+	assert := assert.New(t)
+
+	secSign := "mocked_sign"
+	baseURL := entities.Address("localhost:8080")
+	signer := mockSigner(secSign)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	server := newTestServer(t, baseURL.String(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(http.MethodPost, r.Method)
+		assert.Equal(r.Header.Get("HashSHA256"), secSign)
+
+		w.WriteHeader(http.StatusOK)
+
+		wg.Done()
+	}))
+	defer server.Close()
+
+	exporter := NewHTTPExporter(context.Background(), &baseURL, signer, 1, nil)
+	assert.NotNil(exporter)
+	assert.Equal(baseURL, *exporter.baseURL)
+	assert.Equal(signer, exporter.signer)
+
+	// test sendd empty buffer
+	err := exporter.Send()
+	assert.Equal("cannot send empty buffer", err.Error())
+
+	// test add()
+	exporter.Add("test_counter", metrics.Counter(10))
+	assert.Equal(1, len(exporter.buffer))
+	assert.Equal("test_counter", exporter.buffer[0].ID)
+
+	// test send()
+	err = exporter.Send()
+	assert.NoError(err)
+	assert.NotNil(exporter.jobs)
+
+	wg.Wait()
+
+	assert.Equal(0, len(exporter.buffer))
+
+	// test error()
+	exporter.err = errors.New("test error")
+	assert.Equal("metrics export failed: test error", exporter.Error().Error())
+
+	// test reset()
+	exporter.Reset()
+	assert.Equal(0, len(exporter.buffer))
+	assert.Nil(exporter.err)
 }
 
-func (m *MockSigner) CalculateSignature(data []byte) (string, error) {
-	args := m.Called(data)
-	return args.String(0), args.Error(1)
+func TestHTTPBatchExporter(t *testing.T) {
+	assert := assert.New(t)
+
+	secSign := "mocked_sign"
+	baseURL := entities.Address("localhost:8080")
+	signer := mockSigner(secSign)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	server := newTestServer(t, baseURL.String(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(http.MethodPost, r.Method)
+		assert.Equal(r.Header.Get("HashSHA256"), secSign)
+
+		w.WriteHeader(http.StatusOK)
+
+		wg.Done()
+	}))
+	defer server.Close()
+
+	exporter := NewHTTPBatchExporter(context.Background(), &baseURL, signer, nil)
+	assert.NotNil(exporter)
+	assert.Equal(baseURL, *exporter.baseURL)
+	assert.Equal(signer, exporter.signer)
+
+	// test send empty buffer
+	err := exporter.Send()
+	assert.Equal("cannot send empty buffer", err.Error())
+
+	// test add()
+	exporter.Add("test_counter", metrics.Counter(10))
+	assert.Equal(1, len(exporter.buffer))
+	assert.Equal("test_counter", exporter.buffer[0].ID)
+
+	// test send()
+	err = exporter.Send()
+	assert.NoError(err)
+
+	wg.Wait()
+
+	assert.Equal(0, len(exporter.buffer))
+
+	// test error()
+	exporter.err = errors.New("test error")
+	assert.Equal("metrics export failed: test error", exporter.Error().Error())
+
+	// test reset()
+	exporter.Reset()
+	assert.Equal(0, len(exporter.buffer))
+	assert.Nil(exporter.err)
 }
 
-func (m *MockSigner) VerifySignature(data []byte, hash string) (bool, error) {
-	args := m.Called(data, hash)
-	return args.Bool(0), args.Error(1)
+func TestGRPCExporter(t *testing.T) {
+	assert := assert.New(t)
+
+	baseURL := entities.Address("localhost:50051")
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	cancel := newGRPCTestServer(t, baseURL.String(), wg)
+	defer cancel()
+
+	exporter := NewGRPCExporter(&baseURL, nil)
+	assert.NotNil(exporter)
+	assert.Equal(baseURL, *exporter.baseURL)
+
+	// test send empty buffer
+	err := exporter.Send()
+	assert.Equal("cannot send empty buffer", err.Error())
+
+	// test add()
+	exporter.Add("test_counter", metrics.Counter(10))
+	assert.Equal(1, len(exporter.buffer))
+	assert.Equal("test_counter", exporter.buffer[0].Id)
+
+	// test send()
+	err = exporter.Send()
+	assert.NoError(err)
+
+	assert.Equal(0, len(exporter.buffer))
+
+	// test error()
+	exporter.err = errors.New("test error")
+	assert.Equal("metrics export failed: test error", exporter.Error().Error())
+
+	// test reset()
+	exporter.Reset()
+	assert.Equal(0, len(exporter.buffer))
+	assert.Nil(exporter.err)
 }
 
 func mockSigner(signature string) security.Signer {
-	signer := new(MockSigner)
+	signer := new(security.MockSigner)
 	signer.On("CalculateSignature", mock.Anything).Return(signature, nil)
 
 	return signer
@@ -52,134 +184,38 @@ func newTestServer(t *testing.T, bind string, handler http.HandlerFunc) *httptes
 	return server
 }
 
-func TestNewLimitedExporter(t *testing.T) {
-	baseURL := entities.Address("localhost:8080")
+type TestMetricsServer struct {
+	grpcapi.UnimplementedMetricsServer
 
-	signer := mockSigner("mocked_sign")
-
-	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 3, nil)
-
-	assert.NotNil(t, exporter)
-	assert.Equal(t, baseURL, *exporter.baseURL)
-	assert.Equal(t, signer, exporter.signer)
-	assert.NotNil(t, exporter.jobs)
+	wg *sync.WaitGroup
 }
 
-func TestAdd(t *testing.T) {
-	baseURL := entities.Address("localhost:8080")
+func (s *TestMetricsServer) BatchUpdate(ctx context.Context, req *grpcapi.BatchUpdateRequest) (*grpcapi.BatchUpdateResponse, error) {
+	s.wg.Done()
 
-	signer := mockSigner("mocked_sign")
-
-	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 3, nil)
-
-	counter := metrics.Counter(10)
-	exporter.Add("test_counter", counter)
-
-	assert.Equal(t, 1, len(exporter.buffer))
-	assert.Equal(t, "test_counter", exporter.buffer[0].ID)
+	return &grpcapi.BatchUpdateResponse{}, nil
 }
 
-func TestLimitedSend(t *testing.T) {
-	signer := mockSigner("mocked_sign")
-	baseURL := entities.Address("127.0.0.1:8080")
+func newGRPCTestServer(t *testing.T, bind string, wg *sync.WaitGroup) func() {
+	server := grpc.NewServer()
+	grpcapi.RegisterMetricsServer(server, &TestMetricsServer{wg: wg})
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	lis, err := net.Listen("tcp", bind)
+	if err != nil {
+		t.Fatalf("Failed to listen: %v", err)
+	}
 
-	server := newTestServer(t, "127.0.0.1:8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, r.Header.Get("HashSHA256"), "mocked_sign")
+	go func() {
+		err := server.Serve(lis)
+		if err != nil {
+			t.Logf("Failed to serve: %v", err)
+		}
 
-		w.WriteHeader(http.StatusOK)
+		wg.Wait()
+	}()
 
-		wg.Done()
-	}))
-	defer server.Close()
-
-	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
-	exporter.Add("test_counter", metrics.Counter(10))
-
-	err := exporter.Send()
-	assert.NoError(t, err)
-
-	wg.Wait()
-}
-
-func TestBatchSend(t *testing.T) {
-	signer := mockSigner("mocked_sign")
-	baseURL := entities.Address("127.0.0.1:8080")
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
-	server := newTestServer(t, "127.0.0.1:8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, r.Header.Get("HashSHA256"), "mocked_sign")
-
-		w.WriteHeader(http.StatusOK)
-
-		wg.Done()
-	}))
-	defer server.Close()
-
-	exporter := NewBatchExporter(context.Background(), &baseURL, signer, nil)
-	exporter.Add("test_counter", metrics.Counter(10))
-
-	err := exporter.Send()
-	assert.NoError(t, err)
-
-	wg.Wait()
-
-	assert.Equal(t, len(exporter.buffer), 0)
-}
-
-func TestSendEmptyBuffer(t *testing.T) {
-	signer := mockSigner("mocked_sign")
-	baseURL := entities.Address("localhost:8080")
-
-	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
-
-	err := exporter.Send()
-
-	assert.Error(t, err)
-	assert.Equal(t, "cannot send empty buffer", err.Error())
-}
-
-func TestError(t *testing.T) {
-	signer := mockSigner("mocked_sign")
-	baseURL := entities.Address("localhost:8080")
-
-	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
-
-	exporter.err = errors.New("test error")
-	assert.Equal(t, "metrics export failed: test error", exporter.Error().Error())
-}
-
-func TestReset(t *testing.T) {
-	signer := mockSigner("mocked_sign")
-	baseURL := entities.Address("localhost:8080")
-
-	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
-
-	exporter.Add("test_counter", metrics.Counter(10))
-	exporter.Reset()
-
-	assert.Equal(t, 0, len(exporter.buffer))
-	assert.Nil(t, exporter.err)
-}
-
-func TestWorker(t *testing.T) {
-	signer := mockSigner("mocked_sign")
-	baseURL := entities.Address("localhost:8080")
-
-	exporter := NewLimitedExporter(context.Background(), &baseURL, signer, 1, nil)
-
-	exporter.Add("test_counter", metrics.Counter(10))
-	err := exporter.Send()
-
-	assert.NoError(t, err)
-
-	time.Sleep(1 * time.Second) // wait for worker to process the job
-
-	assert.Equal(t, 0, len(exporter.buffer))
+	return func() {
+		server.Stop()
+		_ = lis.Close()
+	}
 }

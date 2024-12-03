@@ -11,12 +11,12 @@ func NewUpdateGaugeMex(name string, value Gauge) MetricExchange {
 	return MetricExchange{ID: name, MType: value.Kind(), Value: &value}
 }
 
-// Create new MetMetricExchange struct to be used for retrieving of counter metric.
+// Create new MetricExchange struct to be used for retrieving of counter metric.
 func NewGetCounterMex(name string) MetricExchange {
 	return MetricExchange{ID: name, MType: KindCounter}
 }
 
-// Create new MetMetricExchange struct to be used for retrieving of gauge metric.
+// Create new MetricExchange struct to be used for retrieving of gauge metric.
 func NewGetGaugeMex(name string) MetricExchange {
 	return MetricExchange{ID: name, MType: KindGauge}
 }

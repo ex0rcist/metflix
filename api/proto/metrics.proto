@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package metflix.v1;
+
+option go_package = "github.com/ex0rcist/metflix/grpcapi";
+
+message MetricExchange {
+  string id = 1;
+  string mtype = 2;
+  int64 delta = 3;
+  double value = 4;
+  string hash = 5;
+}
+
+message BatchUpdateRequest {
+  repeated MetricExchange data = 1;
+}
+
+message BatchUpdateEncryptedRequest {
+  bytes encrypted_data = 1;
+}
+
+message BatchUpdateResponse {
+  repeated MetricExchange data = 1;
+}
+
+service Metrics {
+  rpc BatchUpdate(BatchUpdateRequest) returns (BatchUpdateResponse);
+  rpc BatchUpdateEncrypted(BatchUpdateEncryptedRequest) returns (BatchUpdateResponse);
+}

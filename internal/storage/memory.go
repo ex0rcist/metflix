@@ -91,3 +91,7 @@ func (s *MemStorage) Snapshot() *MemStorage {
 func (s *MemStorage) Close(_ context.Context) error {
 	return nil // do nothing
 }
+
+func (s *MemStorage) String() string {
+	return "storage=memory"
+}

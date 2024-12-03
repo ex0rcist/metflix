@@ -1,8 +1,8 @@
 {
     "address": "localhost:8080",
+    "grpc_address": "localhost:50051",
     "restore": true,
     "store_interval": 1,
     "store_file": "./metflix.db",
-    
     "crypto_key": "./example_key.pem"
 }

@@ -2,57 +2,34 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/caarlos0/env/v11"
 	"github.com/ex0rcist/metflix/internal/agent/exporter"
 	"github.com/ex0rcist/metflix/internal/entities"
 	"github.com/ex0rcist/metflix/internal/logging"
 	"github.com/ex0rcist/metflix/internal/security"
 	"github.com/ex0rcist/metflix/internal/utils"
-	"github.com/spf13/pflag"
 )
 
 const shutdownTimeout = 60 * time.Second
 
 // Metric collecting agent (mr. Bond?).
 type Agent struct {
-	Config   *Config
-	Stats    *Stats
-	Exporter exporter.Exporter
-
+	Config    *Config
+	Stats     *Stats
+	Exporter  exporter.Exporter
 	interrupt chan os.Signal
-
-	wg sync.WaitGroup
-}
-
-// Agent config.
-type Config struct {
-	Address        entities.Address  `env:"ADDRESS" json:"address"`
-	PollInterval   int               `env:"POLL_INTERVAL" json:"poll_interval"`
-	ReportInterval int               `env:"REPORT_INTERVAL" json:"report_interval"`
-	RateLimit      int               `env:"RATE_LIMIT" json:"-"`
-	Secret         entities.Secret   `env:"KEY" json:"key"`
-	PublicKeyPath  entities.FilePath `env:"CRYPTO_KEY" json:"crypto_key"`
+	wg        sync.WaitGroup
 }
 
 // Constructor.
 func New() (*Agent, error) {
-	config := &Config{
-		Address:        "0.0.0.0:8080",
-		PollInterval:   2,
-		ReportInterval: 10,
-		RateLimit:      -1,
-	}
-
-	err := parseConfig(config)
+	config, err := NewConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -72,10 +49,21 @@ func (a *Agent) Run() error {
 	ctx, cancelBackgroundTasks := context.WithCancel(context.Background())
 	defer cancelBackgroundTasks()
 
-	exporter, err := newMetricsExporter(ctx, a.Config)
+	publicKey, err := preparePublicKey(a.Config.PublicKeyPath)
+	if err != nil {
+		logging.LogInfo("error making public key")
+	}
+
+	var signer security.Signer
+	if len(a.Config.Secret) > 0 {
+		signer = security.NewSignerService(a.Config.Secret)
+	}
+
+	exporter, err := exporter.New(ctx, a.Config.Transport, &a.Config.Address, a.Config.RateLimit, signer, publicKey)
 	if err != nil {
 		return err
 	}
+
 	a.Exporter = exporter
 
 	signal.Notify(a.interrupt, os.Interrupt, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -163,7 +151,6 @@ func (a *Agent) startReporting(ctx context.Context) {
 func (a *Agent) reportStats() {
 	logging.LogInfo("reporting stats ... ")
 
-	// agent continues polling while report is in progress, take snapshot?
 	snapshot := *a.Stats
 
 	a.Exporter.
@@ -220,142 +207,18 @@ func (a *Agent) reportStats() {
 	a.Stats.PollCount -= snapshot.PollCount
 }
 
-// Stringer.
-func (c Config) String() string {
-	str := []string{
-		fmt.Sprintf("address=%s", c.Address),
-		fmt.Sprintf("poll-interval=%v", c.PollInterval),
-		fmt.Sprintf("report-interval=%v", c.ReportInterval),
-		fmt.Sprintf("rate-limit=%v", c.RateLimit),
-	}
+func preparePublicKey(path entities.FilePath) (security.PublicKey, error) {
+	var (
+		publicKey security.PublicKey
+		err       error
+	)
 
-	if len(c.Secret) > 0 {
-		str = append(str, fmt.Sprintf("secret=%v", c.Secret))
-	}
-
-	if len(c.PublicKeyPath) > 0 {
-		str = append(str, fmt.Sprintf("public-key=%v", c.PublicKeyPath))
-	}
-
-	return "agent config: " + strings.Join(str, "; ")
-}
-
-func detectExporterKind(c *Config) string {
-	var ek string
-
-	switch {
-	case c.RateLimit > 0:
-		ek = exporter.KindLimited
-	default:
-		ek = exporter.KindBatch
-	}
-
-	return ek
-}
-
-func newMetricsExporter(ctx context.Context, config *Config) (exporter.Exporter, error) {
-	var exp exporter.Exporter
-	var signer security.Signer
-	var err error
-
-	if len(config.Secret) > 0 {
-		signer = security.NewSignerService(config.Secret)
-	}
-
-	var publicKey security.PublicKey
-	if len(config.PublicKeyPath) != 0 {
-		publicKey, err = security.NewPublicKey(config.PublicKeyPath)
+	if len(path) > 0 {
+		publicKey, err = security.NewPublicKey(path)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	exporterKind := detectExporterKind(config)
-
-	switch exporterKind {
-	case exporter.KindLimited:
-		exp = exporter.NewLimitedExporter(ctx, &config.Address, signer, config.RateLimit, publicKey)
-	case exporter.KindBatch:
-		exp = exporter.NewBatchExporter(ctx, &config.Address, signer, publicKey)
-	default:
-		exp, err = nil, fmt.Errorf("unknown exporter type")
-	}
-
-	return exp, err
-}
-
-func parseConfig(config *Config) error {
-	err := tryLoadJSONConfig(config)
-	if err != nil {
-		return err
-	}
-
-	address := config.Address
-	pflag.VarP(&address, "address", "a", "address:port for HTTP API requests")
-
-	secret := config.Secret
-	pflag.VarP(&secret, "secret", "k", "a key to sign outgoing data")
-
-	publicKeyPath := config.PublicKeyPath
-	pflag.VarP(&publicKeyPath, "crypto-key", "", "path to public key to encrypt agent -> server communications")
-
-	configPath := entities.FilePath("") // register var for compatibility
-	pflag.VarP(&configPath, "config", "c", "path to configuration file in JSON format")
-
-	pflag.IntVarP(&config.PollInterval, "poll-interval", "p", config.PollInterval, "interval (s) for polling stats")
-	pflag.IntVarP(&config.ReportInterval, "report-interval", "r", config.ReportInterval, "interval (s) for polling stats")
-	pflag.IntVarP(&config.RateLimit, "rate-limit", "l", config.RateLimit, "number of max simultaneous requests to server")
-
-	pflag.Parse()
-
-	pflag.Visit(func(f *pflag.Flag) {
-		switch f.Name {
-		case "address":
-			config.Address = address
-		case "secret":
-			config.Secret = secret
-		case "crypto-key":
-			config.PublicKeyPath = publicKeyPath
-		}
-	})
-
-	if err := env.Parse(config); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func tryLoadJSONConfig(dst *Config) error {
-	configArg := os.Getenv("CONFIG")
-
-	// args is higher prior
-	for i, arg := range os.Args {
-		if (arg == "-c" || arg == "--config") && i+1 < len(os.Args) {
-			configArg = os.Args[i+1]
-			break
-		}
-	}
-
-	if len(configArg) > 0 {
-		err := loadConfigFromFile(entities.FilePath(configArg), dst)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func loadConfigFromFile(src entities.FilePath, dst *Config) error {
-	data, err := os.ReadFile(src.String())
-	if err != nil {
-		return fmt.Errorf("agent.loadConfigFromFile - os.ReadFile: %w", err)
-	}
-
-	if err := json.Unmarshal(data, dst); err != nil {
-		return fmt.Errorf("agent.loadConfigFromFile - json.Unmarshal: %w", err)
-	}
-
-	return nil
+	return publicKey, err
 }

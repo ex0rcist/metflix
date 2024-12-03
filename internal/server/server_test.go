@@ -13,14 +13,9 @@ func TestNew(t *testing.T) {
 	if server.storage == nil {
 		t.Fatal("expected storage to not be nil")
 	}
-
-	if server.router == nil {
-		t.Fatal("expected router to not be nil")
-	}
 }
 
 func TestParseFlags(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		args    []string
@@ -45,7 +40,7 @@ func TestParseFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{Address: "default"}
 
-			err := parseFlags(config, "progname", tt.args)
+			err := config.parseFlags("progname", tt.args)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Expected no error, got %v", err)
 			}
@@ -53,19 +48,5 @@ func TestParseFlags(t *testing.T) {
 				t.Errorf("Expected %v, got %v", tt.want, config)
 			}
 		})
-	}
-}
-
-func TestRun(t *testing.T) {
-	// pending: how to test lsitenAndServe? goroutine?
-}
-
-func TestString(t *testing.T) {
-	// config := Config{Address: "0.0.0.0:8080"}
-	srv, _ := New() // TODO
-
-	expected := "server config: address=0.0.0.0:8080; storage=memory"
-	if srv.String() != expected {
-		t.Errorf("Expected %v, got %v", expected, srv.String())
 	}
 }
