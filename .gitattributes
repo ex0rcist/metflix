@@ -1,1 +1,1 @@
-coverage.html -linguist-documentation
+*.html linguist-vendored
