@@ -1,6 +1,6 @@
 # Metflix
 
-<img src="gopher.png" style="width: 30%; float: left; margin: 0 15px 0px 0px; padding: 0 15px 0 0;" alt="Описание">
+<img  align="left" width="200" src="gopher.png" >
 
 Учебный проект в рамках курса GO-advanced Яндекс.Практикума. Состоит из: 
 - сервиса сбора метрик (агент)
